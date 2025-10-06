@@ -5,7 +5,7 @@
 |------|------|-------------|-----------|
 | **Member A** | Zihao Gong | 1005036916 | [Zihao1121](https://github.com/Zihao1121) |
 | **Member B** | Shiming Zhang | 1011821129 | [Ming031121](https://github.com/Ming031121) |
-| **Member C** | Zixuan Huang | 1004288376 | [Huanz86251](https://github.com/Huanz86251) |
+| **Member C** | Zixuan Huang | 1006288376 | [Huanz86251](https://github.com/Huanz86251) |
 
 ## Motivation
 With the popularization of the Internet, today’s web is becoming complex and vast; it is difficult for users to efficiently find the information they need. Traditional crawler scripts struggle to help users find trustworthy, relevant, and up-to-date evidence on target topics. Furthermore, a major industry challenge with large language model technology is reducing model hallucinations. High-quality evidence-grounded retrieval data is key to addressing this issue, and low-quality crawler data can lead to misjudgments in large language models. We aim to develop a Rust-based crawler pipeline that integrates web crawling with the retrieval and evidence-extraction side of RAG (we will add generation if there is enough time left). This pipeline captures product information and user reviews from e-commerce platforms, cleans and deduplicates raw data, normalizes the storage of numeric facts, such as price, weight, and rating, builds a queryable semantic index, and provides answers and references to user queries in a traceable manner with URL, timestamp, and evidence sentence.  
@@ -86,4 +86,5 @@ To make full use of Rust’s strengths, this project is designed as a complete, 
 **All Members**
 - Collaboratively test all modules, optimize performance, and ensure graceful error handling.
 - Prepare documentation, sample outputs, and demonstration runs to showcase the system.
+
 
