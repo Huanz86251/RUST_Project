@@ -1,70 +1,69 @@
 
-
 # Project Proposal: Rust Web Crawler with Data Analysis
 
 ## Motivation
-Our team is motivated to build this project because we see a gap in the Rust ecosystem when it comes to web crawling and text analysis. While Python has well-established libraries for these tasks (e.g., requests, BeautifulSoup, NLTK), Rust offers fewer ready-made solutions. This creates an opportunity for us to explore Rust’s strengths—safety, performance, and concurrency—by implementing a small-scale but practical system.  
-
-In addition to filling this gap, the project is both satisfying and fun to work on. It allows us to practice asynchronous programming with Rust’s powerful async/await model, experiment with text processing and sentiment analysis, and build an interactive terminal interface. The outcome will not only help us learn Rust more deeply but also contribute a useful reference implementation for others interested in combining web crawling, natural language analysis, and visualization in Rust.  
-
+With the popularization of the Internet, today’s web is becoming complex and vast; it is difficult for users to efficiently find the information they need. Traditional crawler scripts struggle to help users find trustworthy, relevant, and up-to-date evidence on target topics. Furthermore, a major industry challenge with large language model technology is reducing model hallucinations. High-quality evidence-grounded retrieval data is key to addressing this issue, and low-quality crawler data can lead to misjudgments in large language models. We aim to develop a Rust-based crawler pipeline that integrates web crawling with the retrieval and evidence-extraction side of RAG (we will add generation if there is enough time left). This pipeline captures product information and user reviews from e-commerce platforms, cleans and deduplicates raw data, normalizes the storage of numeric facts, such as price, weight, and rating, builds a queryable semantic index, and provides answers and references to user queries in a traceable manner with URL, timestamp, and evidence sentence. 
+For subjective comments, we use ANN retrieval and cross-encoder re-ranking to return the most relevant product reviews and descriptions. And for specific values, we will search the database, return solid data, and generate corresponding figures, such as historical price trends. This ensures that mathematical facts are separated from language facts, preventing users and LLMs from getting mixed information.
+In the Rust ecosystem, crawling and parsing scripts are relatively mature, but integrated pipelines and reusable components, from crawling to semantic indexing, evidence extraction, and re-ranking, and finally generating evidence-based answers, are still relatively scarce. Most retrieval scripts focus more on minimal vector-retrieval demos and ignore the complete pipeline of data crawling, storage, and extraction. We hope to leverage Rust's speed and safety to quickly convert web pages into searchable and traceable evidence, which may benefit a lot of people. Especially for the large language models field, Rust's high runtime speed can increase retrieval and preprocessing throughput, which effectively reduces large language models' end-to-end latency during inference. For human users, this can also reduce their search time and provide the most relevant data.
 ---
 
 ## Objective and Key Features
-**Objective**:  
-To design and implement a Rust-based web crawler that can asynchronously fetch data from multiple websites, extract meaningful content, and perform basic natural language analysis, all while displaying the results in a text-based user interface.
 
-**Key Features**:  
-1. **Asynchronous Web Crawler**  
-   - Implemented using **Tokio** (async runtime) and **Reqwest** (HTTP client)  
-   - Supports concurrent requests with proper error handling and retry logic  
+The project’s objective is to design and implement a high-performance, memory-safe and scalable web crawler that follows a data processing pipeline and presents the result through an interactive text user interface.  Also, the collected and cleaned data will serve as high-quality retrieval material for future Retrieval-Augmented Generation (RAG) systems, providing structured and reliable input for LLM-based applications.
+The tool’s functions include historical price visualization, forecasting potential price fluctuations, finding the most relevant reviews for individual products, cross-platform comparisons among similar items, and rating and review similarity analysis to assess product popularity and overall user satisfaction.
+To achieve this objective, the system incorporates several performance-oriented features.
 
-2. **HTML Parsing and Data Extraction**  
-   - Use the **Scraper** crate to parse HTML pages  
-   - Extract relevant content such as titles, articles, or user comments  
+Asynchronous Web Crawling
+We will implement concurrent, non-blocking data collection using Rust’s async/await model and stackless coroutines to efficiently fetch data from multiple e-commerce websites. The Tokio runtime will manage asynchronous task scheduling, while Reqwest will handle HTTP requests for retrieving HTML content.
+To ensure efficient data collection and minimize waiting time, the crawler utilizes asynchronous operations implemented with stackless coroutines. This approach enables the program to handle numerous concurrent network requests without blocking, significantly accelerating the overall data retrieval process.
+Data Cleaning and Analysis Using Rust
+We will use the Scraper crate to parse HTML documents and extract relevant information while filtering out advertisements, scripts, and other irrelevant content. The data cleaning module will standardize formats (e.g., price strings, currency symbols), handle missing or inconsistent values, and ensure data integrity for accurate analysis. 
+Instead of relying on external platforms such as Azure or Python-based models, this project performs data cleaning and analysis entirely in Rust, which guarantees no null pointers, buffer overflows, or data races through its ownership and borrowing system. This design choice significantly reduces the likelihood of system crashes and enhances the overall stability and reliability of the tool. Compared to Python, which depends on a garbage collector and can suffer from runtime overhead or concurrency limitations, Rust offers deterministic performance and thread-safe parallelism. Unlike Azure’s managed cloud pipelines, Rust provides full local control over data processing with minimal dependency and latency. This design choice ensures greater efficiency, stability, and reliability across the entire data pipeline.
 
-3. **Basic Data Analysis**  
-   - **Word Frequency Analysis**: Count and rank the most frequently used words  
-   - **Sentiment Analysis**: Integrate a sentiment analysis library (e.g., `vader_sentiment`) to measure positive/negative/neutral sentiment in text  
+Language Vector Index
+After capturing and storing user reviews and product descriptions, we will load the Transformer model using tch-rs and put the text into the model. We will extract the model's last hidden state layer as the text vector and store it. When a user asks a question, we utilize hnsw-rs to perform an Approximate Nearest Neighbour (ANN) search to find the top 50 most relevant sentences. Then, we use Hugging Face to export a quantized cross-encoder model and load it with ONNX Runtime. The cross-encoder can perform a more fine-grained re-ranking of the top 50 candidate sentences based on the user's question.
+Text user interface
+We will develop an interactive text-based user interface (TUI) that allows users to perform various analyses directly within the terminal. This interface will be built using the Ratatui crate, providing an intuitive and efficient way to explore data, visualize results, and monitor the crawling and analysis process in real time.
+To enhance usability and accessibility, the project employs a text-based user interface (TUI) for presenting essential information and analytical charts directly within the terminal. Compared to graphical components, the TUI uses characters and colour blocks. This lightweight interface enhances efficiency by minimizing resource usage and ensuring both human-readability and interpretability by large language models, facilitating potential future integration.
 
-4. **Terminal User Interface (TUI)**  
-   - Use **Ratatui** to create an interactive dashboard in the terminal  
-   - Display crawler progress, word frequency tables, and sentiment distribution charts  
+Novelty:
+To make full use of Rust’s strengths, this project is designed as a complete, end-to-end data processing pipeline that supports both developers and general users. While end users may not directly perceive the benefits of Rust’s high performance and memory safety, these features are crucial for building reliable and scalable Retrieval-Augmented Generation (RAG) systems. Although the project itself does not perform text generation, it is designed to integrate seamlessly with LLM-based applications, serving as a robust foundation for future intelligent extensions. By exploring this connection, the project bridges traditional data engineering with modern AI workflows, filling a practical gap in the current Rust ecosystem.
 
-**Novelty**:  
-Although small in scope, the project is innovative in combining Rust’s asynchronous concurrency, text analysis, and TUI visualization in a single package. Compared to Python equivalents, this fills a unique gap in the Rust ecosystem by offering a lightweight, Rust-native tool for web data collection and analysis.  
 
----
 
-## Tentative Plan
-Our team will collaborate over the next few weeks to implement this project. Each member will take responsibility for a major module:  
+Weak 1-2: Crawling and Data Cleaning:
 
-- **Member A (Crawler Development)**  
-  - Implement the asynchronous web crawler using Tokio + Reqwest  
-  - Handle concurrency limits, request retries, and URL deduplication  
+Member A:
+Build the asynchronous crawler using reqwest and tokio
+Ensure robots.txt compliance and rate limiting.
+Member B and C:
+Parse HTML and extract structured product attributes.
+Normalize data into a unified schema (price normalization, category standardization, etc.).
+If cleaning proves to be a large workload, all three members will collaborate on this stage to ensure consistency and robustness.
 
-- **Member B (HTML Parsing and Extraction)**  
-  - Define rules for extracting text from HTML (titles, articles, comments)  
-  - Clean and preprocess the extracted content for further analysis  
+Week 3-4: Data Analysis
 
-- **Member C (Data Analysis)**  
-  - Implement word frequency analysis using hash maps  
-  - Integrate a sentiment analysis library and provide aggregated sentiment results  
+Member A:
+Implements historical price visualization and predictive modelling to forecast potential price fluctuations based on temporal trends and market behaviour.
+Member B:
+Develops a review embedding and similarity analysis module that vectorizes user reviews to identify semantically related opinions and product feedback patterns.
+Member C:
+Conducts cross-platform product comparison and rating distribution analysis to evaluate consistency in pricing, popularity, and user satisfaction across different e-commerce sources.
 
-- **Member D (User Interface and Integration)**  
-  - Develop a Ratatui-based terminal dashboard for displaying crawler progress and analysis results  
-  - Integrate the crawler and analysis modules into a cohesive CLI application  
 
-By dividing responsibilities clearly and focusing on feasibility, we are confident the project can be completed within the course timeline. The final deliverable will be a working Rust application that demonstrates the integration of asynchronous crawling, natural language analysis, and interactive visualization.  
+Week 5: Integration and Advanced Feature Development
+Member A:
+Start developing a ui interface to enhance the Ratatui interface with multiple tabs: overview, price insights, and rating/review analysis.
+Add navigation features and CSV export.
 
----
+Member B and C 
+Finalize duplicate product detection and integrate it into the analysis layer.
+produce finalized analysis results and structured outputs, then coordinate closely with Member A so that these results can be displayed in the user interface.
 
-## Marking Rubrics (Reference)
+Week 6: Testing and Final Delivery
+All Memeber:
+Collaboratively test all modules, optimize performance, and ensure graceful error handling. Prepare documentation, sample outputs, and demonstration runs to showcase the system.
 
-- **Motivation**: 30%  
-  - Convincing motivation, demonstrating thoughtful consideration of the project.  
 
-- **Objective and Key Features**: 30% (+3 Bonus Points possible)  
-  - Clearly defined objectives and features, filling a potential gap in the Rust ecosystem.  
 
-- **Tentative Plan**: 40%  
-  - Concise, clear responsibilities assigned to each team member, and feasibility within the timeline.  
+
