@@ -25,20 +25,20 @@ The tool’s functions include historical price visualization, forecasting poten
 To achieve this objective, the system incorporates several performance-oriented features.
 
 ### Asynchronous Web Crawling
-We will implement concurrent, non-blocking data collection using Rust’s async/await model and stackless coroutines to efficiently fetch data from multiple e-commerce websites. The Tokio runtime will manage asynchronous task scheduling, while Reqwest will handle HTTP requests for retrieving HTML content.  
+We will implement concurrent, non-blocking data collection using Rust’s async/await model and stackless coroutines to efficiently fetch data from multiple e-commerce websites. The `Tokio` runtime will manage asynchronous task scheduling, while `Reqwest` will handle HTTP requests for retrieving HTML content.  
 
 To ensure efficient data collection and minimize waiting time, the crawler utilizes asynchronous operations implemented with stackless coroutines. This approach enables the program to handle numerous concurrent network requests without blocking, significantly accelerating the overall data retrieval process.
 
 ### Data Cleaning and Analysis Using Rust
-We will use the Scraper crate to parse HTML documents and extract relevant information while filtering out advertisements, scripts, and other irrelevant content. The data cleaning module will standardize formats (e.g., price strings, currency symbols), handle missing or inconsistent values, and ensure data integrity for accurate analysis.  
+We will use the `Scraper` crate to parse HTML documents and extract relevant information while filtering out advertisements, scripts, and other irrelevant content. The data cleaning module will standardize formats (e.g., price strings, currency symbols), handle missing or inconsistent values, and ensure data integrity for accurate analysis.  
 
 Instead of relying on external platforms such as Azure or Python-based models, this project performs data cleaning and analysis entirely in Rust, which guarantees no null pointers, buffer overflows, or data races through its ownership and borrowing system. This design choice significantly reduces the likelihood of system crashes and enhances the overall stability and reliability of the tool. Compared to Python, which depends on a garbage collector and can suffer from runtime overhead or concurrency limitations, Rust offers deterministic performance and thread-safe parallelism. Unlike Azure’s managed cloud pipelines, Rust provides full local control over data processing with minimal dependency and latency. This design choice ensures greater efficiency, stability, and reliability across the entire data pipeline.
 
 ### Language Vector Index
-After capturing and storing user reviews and product descriptions, we will load the Transformer model using tch-rs and put the text into the model. We will extract the model's last hidden state layer as the text vector and store it. When a user asks a question, we utilize hnsw-rs to perform an Approximate Nearest Neighbour (ANN) search to find the top 50 most relevant sentences. Then, we use Hugging Face to export a quantized cross-encoder model and load it with ONNX Runtime. The cross-encoder can perform a more fine-grained re-ranking of the top 50 candidate sentences based on the user's question.
+After capturing and storing user reviews and product descriptions, we will load the Transformer model using `tch-rs` and put the text into the model. We will extract the model's last hidden state layer as the text vector and store it. When a user asks a question, we utilize `hnsw-rs` to perform an Approximate Nearest Neighbour (ANN) search to find the top 50 most relevant sentences. Then, we use Hugging Face to export a quantized cross-encoder model and load it with `ONNX Runtime`. The cross-encoder can perform a more fine-grained re-ranking of the top 50 candidate sentences based on the user's question.
 
 ### Text User Interface
-We will develop an interactive text-based user interface (TUI) that allows users to perform various analyses directly within the terminal. This interface will be built using the Ratatui crate, providing an intuitive and efficient way to explore data, visualize results, and monitor the crawling and analysis process in real time.  
+We will develop an interactive text-based user interface (TUI) that allows users to perform various analyses directly within the terminal. This interface will be built using the `Ratatui` crate, providing an intuitive and efficient way to explore data, visualize results, and monitor the crawling and analysis process in real time.  
 
 To enhance usability and accessibility, the project employs a text-based user interface (TUI) for presenting essential information and analytical charts directly within the terminal. Compared to graphical components, the TUI uses characters and colour blocks. This lightweight interface enhances efficiency by minimizing resource usage and ensuring both human-readability and interpretability by large language models, facilitating potential future integration.
 
@@ -86,5 +86,6 @@ To make full use of Rust’s strengths, this project is designed as a complete, 
 **All Members**
 - Collaboratively test all modules, optimize performance, and ensure graceful error handling.
 - Prepare documentation, sample outputs, and demonstration runs to showcase the system.
+
 
 
