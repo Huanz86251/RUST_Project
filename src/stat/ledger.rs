@@ -17,6 +17,21 @@ fn expand_month_range(mut sy: i32, mut sm: u32, ey: i32, em: u32) -> Vec<(i32, u
 
     result
 }
+#[derive(Debug, Clone, Copy)]
+enum Purpose {
+    All,
+    Income,
+    Outcome,
+}
+impl Purpose {
+    fn trans(onlyspend: Option<bool>) -> Self {
+        match onlyspend {
+            None => Purpose::All,
+            Some(true) => Purpose::Outcome,
+            Some(false) => Purpose::Income,
+        }
+    }
+}
 #[derive(Debug, Default)]
 pub struct Ledger {
     pub user: Vec<User>,
@@ -34,10 +49,37 @@ pub struct AccountSummary {
     pub currency: Currency,
 }
 #[derive(Debug, Clone, Default)]
+pub struct Detailstats {
+    pub income: f64,
+    pub outcome: f64,
+    pub summary: f64,
+}
+impl Detailstats {
+    fn get(&self, purpose: Purpose) -> f64 {
+        match purpose {
+            Purpose::All => self.summary,
+            Purpose::Income => self.income,
+            Purpose::Outcome => self.outcome,
+        }
+    }
+}
+#[derive(Debug, Clone, Default)]
 pub struct Monthstats {
     pub income: f64,
     pub outcome: f64,
     pub summary: f64,
+    pub category: HashMap<Option<CategoryId>, Detailstats>,
+    pub account: HashMap<AccountId, Detailstats>,
+    pub account_category: HashMap<(AccountId, Option<CategoryId>), Detailstats>,
+}
+impl Monthstats {
+    fn get(&self, purpose: Purpose) -> f64 {
+        match purpose {
+            Purpose::All => self.summary,
+            Purpose::Income => self.income,
+            Purpose::Outcome => self.outcome,
+        }
+    }
 }
 impl Ledger {
     pub fn cal_balance(&self, accountid: AccountId) -> f64 {
@@ -70,9 +112,7 @@ impl Ledger {
     pub fn monthstats(
         &self,
         userid: UserId,
-        category: Option<CategoryId>,
         timephase: ((i32, u32), (i32, u32)),
-        accountid: Option<AccountId>,
     ) -> HashMap<(i32, u32), Monthstats> {
         let start = timephase.0;
         let end = timephase.1;
@@ -90,16 +130,6 @@ impl Ledger {
             if i.userid != userid {
                 continue;
             }
-            if let Some(acc) = accountid {
-                if i.accountid != acc {
-                    continue;
-                }
-            }
-            if let Some(cat) = category {
-                if i.categoryid != Some(cat) {
-                    continue;
-                }
-            }
             let (y, m) = match trans.get(&i.tranid) {
                 Some(&(y1, m1)) => (y1, m1),
                 None => continue,
@@ -108,12 +138,30 @@ impl Ledger {
                 continue;
             }
             let temp = stats.entry((y, m)).or_insert(Monthstats::default());
+            let cat = i.categoryid;
+            let catstat = temp.category.entry(cat).or_insert(Detailstats::default());
+            let acc = i.accountid;
+            let acctat = temp.account.entry(acc).or_insert(Detailstats::default());
+            let acc_cat = (acc, cat);
+            let acccattat = temp
+                .account_category
+                .entry(acc_cat)
+                .or_insert(Detailstats::default());
             if i.amount >= 0.0 {
                 temp.income += i.amount;
+                catstat.income += i.amount;
+                acctat.income += i.amount;
+                acccattat.income += i.amount;
             } else {
                 temp.outcome += i.amount;
+                catstat.outcome += i.amount;
+                acctat.outcome += i.amount;
+                acccattat.outcome += i.amount;
             }
             temp.summary = temp.income + temp.outcome;
+            catstat.summary = catstat.income + catstat.outcome;
+            acctat.summary = acctat.income + acctat.outcome;
+            acccattat.summary = acccattat.income + acccattat.outcome;
         }
         for &(y, m) in &phase {
             stats.entry((y, m)).or_insert(Monthstats::default());
@@ -143,13 +191,27 @@ impl Ledger {
         timephase: Option<((i32, u32), (i32, u32))>,
     ) -> f64 {
         let phase = timephase.unwrap_or(((year, month), (year, month)));
-
-        let stat = self.monthstats(userid, category, phase, accountid);
-        match onlyspend {
-            None => stat.values().map(|s| s.summary).sum(),
-            Some(true) => stat.values().map(|s| s.outcome).sum(),
-            Some(false) => stat.values().map(|s| s.income).sum(),
+        let purpose = Purpose::trans(onlyspend);
+        let stat = self.monthstats(userid, phase);
+        let mut total = 0.0;
+        for (_, s) in stat.iter() {
+            let val = match (accountid, category) {
+                (None, None) => s.get(purpose),
+                (None, Some(cat)) => s
+                    .category
+                    .get(&Some(cat))
+                    .map(|i| i.get(purpose))
+                    .unwrap_or(0.0),
+                (Some(acc), None) => s.account.get(&acc).map(|i| i.get(purpose)).unwrap_or(0.0),
+                (Some(acc), Some(cat)) => s
+                    .account_category
+                    .get(&(acc, Some(cat)))
+                    .map(|i| i.get(purpose))
+                    .unwrap_or(0.0),
+            };
+            total += val;
         }
+        total
     }
 
     pub fn build_demo_ledger() -> Ledger {
