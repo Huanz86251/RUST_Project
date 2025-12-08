@@ -1,7 +1,7 @@
-use crate::stat::datatype::{AccountId, CategoryId, UserId};
-
 use super::datatype::*;
+use crate::stat::datatype::{AccountId, CategoryId, UserId};
 use chrono::*;
+use std::collections::HashMap;
 use uuid::Uuid;
 fn expand_month_range(mut sy: i32, mut sm: u32, ey: i32, em: u32) -> Vec<(i32, u32)> {
     let mut result = Vec::new();
@@ -33,6 +33,12 @@ pub struct AccountSummary {
     pub balance: f64,
     pub currency: Currency,
 }
+#[derive(Debug, Clone, Default)]
+pub struct Monthstats {
+    pub income: f64,
+    pub outcome: f64,
+    pub summary: f64,
+}
 impl Ledger {
     pub fn cal_balance(&self, accountid: AccountId) -> f64 {
         let current = self
@@ -61,37 +67,31 @@ impl Ledger {
             })
             .collect()
     }
-
-    /// `timephase`
-    /// - if `timephase` is not provided，only search year/month data
-    /// - if provide `timephase`, year/month will be overwritten, will search months between start (year,month) to end (year, month)
-    ///
-    /// `category`
-    /// - if `category` is not provided, search all category instead
-    ///
-    /// `onlyspend`
-    /// - if `onlyspend` is not provided or equal to true, only count for spend and return negative value.
-    pub fn month_summary(
+    pub fn monthstats(
         &self,
         userid: UserId,
-        year: i32,
-        month: u32,
         category: Option<CategoryId>,
-        onlyspend: Option<bool>,
-        timephase: Option<((i32, u32), (i32, u32))>,
-    ) -> f64 {
-        let onlyspend = onlyspend.unwrap_or(true);
-        let months: Vec<(i32, u32)> = match timephase {
-            None => vec![(year, month)],
-            Some(((sy, sm), (ey, em))) => expand_month_range(sy, sm, ey, em),
-        };
-        let mut total = 0.0;
+        timephase: ((i32, u32), (i32, u32)),
+        accountid: Option<AccountId>,
+    ) -> HashMap<(i32, u32), Monthstats> {
+        let start = timephase.0;
+        let end = timephase.1;
+        let sy = start.0;
+        let sm = start.1;
+        let ey = end.0;
+        let em = end.1;
+        let phase = expand_month_range(sy, sm, ey, em);
+        let mut trans: HashMap<TransactionId, (i32, u32)> = HashMap::new();
+        for i in &self.transaction {
+            trans.insert(i.id, (i.occur_date.year(), i.occur_date.month()));
+        }
+        let mut stats: HashMap<(i32, u32), Monthstats> = HashMap::new();
         for i in &self.entry {
             if i.userid != userid {
                 continue;
             }
-            if onlyspend {
-                if i.amount >= 0.0 {
+            if let Some(acc) = accountid {
+                if i.accountid != acc {
                     continue;
                 }
             }
@@ -100,18 +100,56 @@ impl Ledger {
                     continue;
                 }
             }
-            let trans = match self.transaction.iter().find(|tx| tx.id == i.tranid) {
-                Some(trans) => trans,
+            let (y, m) = match trans.get(&i.tranid) {
+                Some(&(y1, m1)) => (y1, m1),
                 None => continue,
             };
-            let m = trans.occur_date.month();
-            let y = trans.occur_date.year();
-            if !months.contains(&(y, m)) {
+            if !phase.contains(&(y, m)) {
                 continue;
             }
-            total += i.amount;
+            let temp = stats.entry((y, m)).or_insert(Monthstats::default());
+            if i.amount >= 0.0 {
+                temp.income += i.amount;
+            } else {
+                temp.outcome += i.amount;
+            }
+            temp.summary = temp.income + temp.outcome;
         }
-        total
+        for &(y, m) in &phase {
+            stats.entry((y, m)).or_insert(Monthstats::default());
+        }
+        return stats;
+    }
+    /// `timephase`
+    /// - if `timephase` is not provided，only search year/month data
+    /// - if provide `timephase`, year/month will be overwritten, will search months between start (year,month) to end (year, month)
+    ///
+    /// `category`
+    /// - if `category` is not provided, search all category instead
+    ///
+    /// `accountid`
+    /// - if `accountid` is not provided, check user all account
+    ///
+    /// `onlyspend`
+    /// - if `onlyspend` is not provided, return income+outcome, if equal to true, only count for spend and return negative value, if equal false, return positive value for income.
+    pub fn month_summary(
+        &self,
+        userid: UserId,
+        year: i32,
+        month: u32,
+        accountid: Option<AccountId>,
+        category: Option<CategoryId>,
+        onlyspend: Option<bool>,
+        timephase: Option<((i32, u32), (i32, u32))>,
+    ) -> f64 {
+        let phase = timephase.unwrap_or(((year, month), (year, month)));
+
+        let stat = self.monthstats(userid, category, phase, accountid);
+        match onlyspend {
+            None => stat.values().map(|s| s.summary).sum(),
+            Some(true) => stat.values().map(|s| s.outcome).sum(),
+            Some(false) => stat.values().map(|s| s.income).sum(),
+        }
     }
 
     pub fn build_demo_ledger() -> Ledger {

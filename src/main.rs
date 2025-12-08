@@ -17,7 +17,7 @@ fn main() {
     }
 
     if let Some(user) = ledger.user.first() {
-        let total_spend = ledger.month_summary(user.id, 2025, 12, None, Some(true), None);
+        let total_spend = ledger.month_summary(user.id, 2025, 12, None, None, Some(true), None);
 
         println!(
             "\n== 2025-12 total spend (all category) = {:.2} ==",
@@ -28,7 +28,8 @@ fn main() {
             2025,
             12,
             None,
-            Some(false),
+            None,
+            None,
             Some(((2025, 12), (2025, 12))),
         );
 
