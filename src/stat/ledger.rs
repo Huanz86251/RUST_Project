@@ -1,7 +1,8 @@
 use super::datatype::*;
 use crate::stat::datatype::{AccountId, CategoryId, UserId};
 use chrono::*;
-use std::collections::HashMap;
+use std::cmp::Ordering;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 fn expand_month_range(mut sy: i32, mut sm: u32, ey: i32, em: u32) -> Vec<(i32, u32)> {
     let mut result = Vec::new();
@@ -81,7 +82,41 @@ impl Monthstats {
         }
     }
 }
+#[derive(Debug, Clone)]
+pub struct Trend<K> {
+    pub axis: Vec<K>,
+    pub income: Vec<f64>,
+    pub outcome: Vec<f64>,
+    pub summary: Vec<f64>,
+}
 impl Ledger {
+    fn filter_value(
+        s: &Monthstats,
+        accountid: Option<AccountId>,
+        category: Option<CategoryId>,
+        purpose: Purpose,
+    ) -> f64 {
+        match (accountid, category) {
+            (None, None) => s.get(purpose),
+            (None, Some(cat)) => s
+                .category
+                .get(&Some(cat))
+                .map(|i| i.get(purpose))
+                .unwrap_or(0.0),
+            (Some(acc), None) => s.account.get(&acc).map(|i| i.get(purpose)).unwrap_or(0.0),
+            (Some(acc), Some(cat)) => s
+                .account_category
+                .get(&(acc, Some(cat)))
+                .map(|i| i.get(purpose))
+                .unwrap_or(0.0),
+        }
+    }
+    /////construction..........................................................................................................O^o
+    // fn rank_trend<K:Clone>(trend:Trend<K>,purpose: Purpose,top_k:usize)->Trend<K>{
+    //     let
+
+    // }
+    ///return account current balance
     pub fn cal_balance(&self, accountid: AccountId) -> f64 {
         let current = self
             .account
@@ -97,6 +132,7 @@ impl Ledger {
             .sum();
         return current + temp;
     }
+    /// build  summary for all accounts in ledger
     pub fn all_account_summary(&self) -> Vec<AccountSummary> {
         self.account
             .iter()
@@ -109,6 +145,7 @@ impl Ledger {
             })
             .collect()
     }
+    ///  month statistics for user within a time range
     pub fn monthstats(
         &self,
         userid: UserId,
@@ -168,6 +205,8 @@ impl Ledger {
         }
         return stats;
     }
+    ///return statistics value
+    ///
     /// `timephase`
     /// - if `timephase` is not provided，only search year/month data
     /// - if provide `timephase`, year/month will be overwritten, will search months between start (year,month) to end (year, month)
@@ -195,25 +234,143 @@ impl Ledger {
         let stat = self.monthstats(userid, phase);
         let mut total = 0.0;
         for (_, s) in stat.iter() {
-            let val = match (accountid, category) {
-                (None, None) => s.get(purpose),
-                (None, Some(cat)) => s
-                    .category
-                    .get(&Some(cat))
-                    .map(|i| i.get(purpose))
-                    .unwrap_or(0.0),
-                (Some(acc), None) => s.account.get(&acc).map(|i| i.get(purpose)).unwrap_or(0.0),
-                (Some(acc), Some(cat)) => s
-                    .account_category
-                    .get(&(acc, Some(cat)))
-                    .map(|i| i.get(purpose))
-                    .unwrap_or(0.0),
-            };
+            let val = Self::filter_value(s, accountid, category, purpose);
             total += val;
         }
         total
     }
+    ///use to draw line graph
+    ///
+    /// `timephase`
+    /// - return data between `timephase`
+    ///
+    /// `accountid`
+    /// - if not given, defult use all account under user id
+    ///
+    /// `category`
+    /// - if given, return data only for specific category
+    ///
+    /// support `accountid`+`category`
+    pub fn data_linetrend(
+        &self,
+        userid: UserId,
+        timephase: ((i32, u32), (i32, u32)),
+        accountid: Option<AccountId>,
+        category: Option<CategoryId>,
+    ) -> Trend<(i32, u32)> {
+        let stat = self.monthstats(userid, timephase);
+        let mut k: Vec<(i32, u32)> = stat.keys().cloned().collect();
+        k.sort();
 
+        let mut date = Vec::new();
+        let mut inc = Vec::new();
+        let mut out = Vec::new();
+        let mut sum = Vec::new();
+        for element in k {
+            let v = match stat.get(&element) {
+                Some(v) => v,
+                None => {
+                    continue;
+                }
+            };
+            let v_inc = Self::filter_value(v, accountid, category, Purpose::Income);
+            let v_out = Self::filter_value(v, accountid, category, Purpose::Outcome);
+            let v_sum = Self::filter_value(v, accountid, category, Purpose::All);
+            date.push(element);
+            inc.push(v_inc);
+            out.push(v_out);
+            sum.push(v_sum);
+        }
+        Trend {
+            axis: date,
+            income: inc,
+            outcome: out,
+            summary: sum,
+        }
+    }
+    ///use to draw pie graph-mutiple category,cross months
+    pub fn category_pietrend(
+        &self,
+        userid: UserId,
+        timephase: ((i32, u32), (i32, u32)),
+        accountid: Option<AccountId>,
+    ) -> Trend<CategoryId> {
+        let stat = self.monthstats(userid, timephase);
+        let mut set = HashSet::<CategoryId>::new();
+        for i in stat.values() {
+            for key in i.category.keys() {
+                if let Some(cat) = key {
+                    set.insert(*cat);
+                }
+            }
+        }
+        let mut axis = Vec::new();
+        let mut inc = Vec::new();
+        let mut out = Vec::new();
+        let mut sum = Vec::new();
+        for i in set {
+            let mut v_inc = 0.0;
+            let mut v_out = 0.0;
+            let mut v_sum = 0.0;
+
+            for j in stat.values() {
+                v_inc += Self::filter_value(j, accountid, Some(i), Purpose::Income);
+                v_out += Self::filter_value(j, accountid, Some(i), Purpose::Outcome);
+                v_sum += Self::filter_value(j, accountid, Some(i), Purpose::All);
+            }
+            axis.push(i);
+            inc.push(v_inc);
+            out.push(v_out);
+            sum.push(v_sum);
+        }
+        return Trend {
+            axis: axis,
+            income: inc,
+            outcome: out,
+            summary: sum,
+        };
+    }
+    ///use to draw pie graph-mutiple account,cross months
+    pub fn account_pietrend(
+        &self,
+        userid: UserId,
+        timephase: ((i32, u32), (i32, u32)),
+        category: Option<CategoryId>,
+    ) -> Trend<AccountId> {
+        let stat = self.monthstats(userid, timephase);
+        let mut set = HashSet::<AccountId>::new();
+        for i in stat.values() {
+            for key in i.account.keys() {
+                let acc = key;
+                set.insert(*acc);
+            }
+        }
+        let mut axis = Vec::new();
+        let mut inc = Vec::new();
+        let mut out = Vec::new();
+        let mut sum = Vec::new();
+        for i in set {
+            let mut v_inc = 0.0;
+            let mut v_out = 0.0;
+            let mut v_sum = 0.0;
+
+            for j in stat.values() {
+                v_inc += Self::filter_value(j, Some(i), category, Purpose::Income);
+                v_out += Self::filter_value(j, Some(i), category, Purpose::Outcome);
+                v_sum += Self::filter_value(j, Some(i), category, Purpose::All);
+            }
+            axis.push(i);
+            inc.push(v_inc);
+            out.push(v_out);
+            sum.push(v_sum);
+        }
+        return Trend {
+            axis: axis,
+            income: inc,
+            outcome: out,
+            summary: sum,
+        };
+    }
     pub fn build_demo_ledger() -> Ledger {
         let userid = Uuid::new_v4();
         let now = Utc::now();
