@@ -17,6 +17,15 @@ fn expand_month_range(mut sy: i32, mut sm: u32, ey: i32, em: u32) -> Vec<(i32, u
 
     result
 }
+#[derive(Debug, Clone)]
+pub struct ReconcileResult {
+    pub good: bool,
+    pub internal_balance: f64,
+    pub external_balance: f64,
+    pub difference: f64,
+    pub suspicous_entry: Vec<Entry>,
+}
+
 #[derive(Debug, Clone, Copy)]
 enum Purpose {
     All,
@@ -99,7 +108,7 @@ impl<K: Clone> Trend<K> {
         }
         let income = if inc_s == 0.0 {
             let mut temp = Vec::new();
-            for i in 0..self.income.len() {
+            for _ in 0..self.income.len() {
                 temp.push(0.0);
             }
             temp
@@ -115,7 +124,7 @@ impl<K: Clone> Trend<K> {
         }
         let outcome = if out_s == 0.0 {
             let mut temp = Vec::new();
-            for i in 0..self.outcome.len() {
+            for _ in 0..self.outcome.len() {
                 temp.push(0.0);
             }
             temp
@@ -131,7 +140,7 @@ impl<K: Clone> Trend<K> {
         }
         let summary = if sum_s == 0.0 {
             let mut temp = Vec::new();
-            for i in 0..self.summary.len() {
+            for _ in 0..self.summary.len() {
                 temp.push(0.0);
             }
             temp
@@ -501,6 +510,95 @@ impl Ledger {
         let temp = self.account_pietrend(userid, timephase, category);
         let purpose = Purpose::trans(onlyspend);
         Self::rank_trend(temp, purpose, top_k)
+    }
+    fn reconcile_supicous_entry(
+        &self,
+        userid: UserId,
+        accountid: Option<AccountId>,
+        timephase: ((i32, u32), (i32, u32)),
+        difference: f64,
+        top_k: usize,
+    ) -> Vec<Entry> {
+        if top_k == 0 {
+            return Vec::new();
+        }
+        let start = timephase.0;
+        let end = timephase.1;
+        let sy = start.0;
+        let sm = start.1;
+        let ey = end.0;
+        let em = end.1;
+        let phase = expand_month_range(sy, sm, ey, em);
+        let mut hash_phase = HashSet::new();
+        for i in phase {
+            hash_phase.insert(i);
+        }
+
+        let mut trans = HashSet::new();
+        for i in &self.transaction {
+            if i.userid == userid {
+                if hash_phase.contains(&(i.occur_date.year(), i.occur_date.month())) {
+                    trans.insert(i.id);
+                }
+            }
+        }
+        let mut cad: Vec<(Entry, f64)> = Vec::new();
+        for i in &self.entry {
+            if trans.contains(&i.tranid) && userid == i.userid {
+                if let Some(acc) = accountid {
+                    if i.accountid != acc {
+                        continue;
+                    }
+                }
+                let score = (difference - i.amount).abs();
+                cad.push((i.clone(), score));
+            }
+        }
+        let k = if top_k > cad.len() { cad.len() } else { top_k };
+        cad.sort_by(|i, j| i.1.total_cmp(&j.1));
+        cad.truncate(k);
+        let mut result: Vec<Entry> = Vec::new();
+        for (i, _) in &cad {
+            result.push(i.clone());
+        }
+        return result;
+    }
+    pub fn reconcile(
+        &self,
+        userid: UserId,
+        accountid: Option<AccountId>,
+        external_balance: f64,
+        timephase: ((i32, u32), (i32, u32)),
+        top_k: usize,
+    ) -> ReconcileResult {
+        let internal_ban = self.month_summary(
+            userid,
+            timephase.0.0,
+            timephase.0.1,
+            accountid,
+            None,
+            None,
+            Some(timephase),
+        );
+        let diff = external_balance - internal_ban;
+        if diff.abs() <= 0.01 {
+            return ReconcileResult {
+                good: true,
+                internal_balance: internal_ban,
+                external_balance: external_balance,
+                difference: diff,
+                suspicous_entry: Vec::new(),
+            };
+        } else {
+            let cad = self.reconcile_supicous_entry(userid, accountid, timephase, diff, top_k);
+            return ReconcileResult {
+                good: false,
+                internal_balance: internal_ban,
+                external_balance: external_balance,
+                difference: diff,
+                suspicous_entry: cad,
+            };
+        }
     }
     pub fn build_demo_ledger() -> Ledger {
         let userid = Uuid::new_v4();
