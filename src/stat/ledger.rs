@@ -1,7 +1,6 @@
 use super::datatype::*;
 use crate::stat::datatype::{AccountId, CategoryId, UserId};
 use chrono::*;
-use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 fn expand_month_range(mut sy: i32, mut sm: u32, ey: i32, em: u32) -> Vec<(i32, u32)> {
@@ -89,6 +88,68 @@ pub struct Trend<K> {
     pub outcome: Vec<f64>,
     pub summary: Vec<f64>,
 }
+impl<K: Clone> Trend<K> {
+    ///change Trend content to percentage, better for pie graph
+    pub fn normalize(&self) -> Self {
+        let mut inc_s = 0.0;
+        let mut out_s = 0.0;
+        let mut sum_s = 0.0;
+        for i in &self.income {
+            inc_s += *i;
+        }
+        let income = if inc_s == 0.0 {
+            let mut temp = Vec::new();
+            for i in 0..self.income.len() {
+                temp.push(0.0);
+            }
+            temp
+        } else {
+            let mut temp = Vec::new();
+            for i in &self.income {
+                temp.push(*i / inc_s);
+            }
+            temp
+        };
+        for i in &self.outcome {
+            out_s += *i;
+        }
+        let outcome = if out_s == 0.0 {
+            let mut temp = Vec::new();
+            for i in 0..self.outcome.len() {
+                temp.push(0.0);
+            }
+            temp
+        } else {
+            let mut temp = Vec::new();
+            for i in &self.outcome {
+                temp.push((*i / out_s).abs());
+            }
+            temp
+        };
+        for i in &self.summary {
+            sum_s += *i;
+        }
+        let summary = if sum_s == 0.0 {
+            let mut temp = Vec::new();
+            for i in 0..self.summary.len() {
+                temp.push(0.0);
+            }
+            temp
+        } else {
+            let mut temp = Vec::new();
+            for i in &self.summary {
+                temp.push(*i / sum_s);
+            }
+            temp
+        };
+        return Trend {
+            axis: self.axis.clone(),
+            income: income,
+            outcome: outcome,
+            summary: summary,
+        };
+    }
+}
 impl Ledger {
     fn filter_value(
         s: &Monthstats,
@@ -111,11 +172,7 @@ impl Ledger {
                 .unwrap_or(0.0),
         }
     }
-    /////construction..........................................................................................................O^o
-    // fn rank_trend<K:Clone>(trend:Trend<K>,purpose: Purpose,top_k:usize)->Trend<K>{
-    //     let
 
-    // }
     ///return account current balance
     pub fn cal_balance(&self, accountid: AccountId) -> f64 {
         let current = self
@@ -370,6 +427,80 @@ impl Ledger {
             outcome: out,
             summary: sum,
         };
+    }
+    fn rank_trend<K: Clone>(trend: Trend<K>, purpose: Purpose, top_k: usize) -> Trend<K> {
+        let len = trend.axis.len();
+        if len == 0 || top_k == 0 {
+            return trend;
+        }
+        let k = if top_k > len { len } else { top_k };
+
+        let mut temp = Vec::new();
+        for i in 0..len {
+            temp.push(i);
+        }
+        temp.sort_by(|&i, &j| {
+            let v_i = match purpose {
+                Purpose::All => trend.summary[i],
+                Purpose::Income => trend.income[i],
+                Purpose::Outcome => trend.outcome[i].abs(),
+            };
+            let v_j = match purpose {
+                Purpose::All => trend.summary[j],
+                Purpose::Income => trend.income[j],
+                Purpose::Outcome => trend.outcome[j].abs(),
+            };
+            v_j.total_cmp(&v_i)
+        });
+        temp.truncate(k);
+        let mut axis = Vec::new();
+        let mut inc = Vec::new();
+        let mut out = Vec::new();
+        let mut sum = Vec::new();
+        for i in temp {
+            axis.push(trend.axis[i].clone());
+            inc.push(trend.income[i]);
+            out.push(trend.outcome[i]);
+            sum.push(trend.summary[i]);
+        }
+        return Trend {
+            axis: axis,
+            income: inc,
+            outcome: out,
+            summary: sum,
+        };
+    }
+    ///return top k for category, can filter by account,from large to small
+    ///
+    /// `onlyspend`
+    /// - if true, use outcome rank, if false, use income rank, not given use summary to rank
+    pub fn top_category(
+        &self,
+        userid: UserId,
+        timephase: ((i32, u32), (i32, u32)),
+        accountid: Option<AccountId>,
+        top_k: usize,
+        onlyspend: Option<bool>,
+    ) -> Trend<CategoryId> {
+        let temp = self.category_pietrend(userid, timephase, accountid);
+        let purpose = Purpose::trans(onlyspend);
+        Self::rank_trend(temp, purpose, top_k)
+    }
+    ///return top k for account, can filter by category,from large to small
+    ///
+    /// `onlyspend`
+    /// - if true, use outcome rank, if false, use income rank, not given use summary to rank
+    pub fn top_account(
+        &self,
+        userid: UserId,
+        timephase: ((i32, u32), (i32, u32)),
+        category: Option<CategoryId>,
+        top_k: usize,
+        onlyspend: Option<bool>,
+    ) -> Trend<AccountId> {
+        let temp = self.account_pietrend(userid, timephase, category);
+        let purpose = Purpose::trans(onlyspend);
+        Self::rank_trend(temp, purpose, top_k)
     }
     pub fn build_demo_ledger() -> Ledger {
         let userid = Uuid::new_v4();
