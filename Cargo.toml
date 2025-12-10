@@ -19,3 +19,17 @@ rand = "0.8"
 # tui
 crossterm = "0.28"
 ratatui = { version = "0.28", default-features = false, features = ["crossterm"] }
+[features]
+default = []
+
+cuda = [
+  "candle-core/cuda",
+  "candle-nn/cuda",
+  "candle-transformers/cuda",
+]
+
+metal = [
+  "candle-core/metal",
+  "candle-nn/metal",
+  "candle-transformers/metal",
+]

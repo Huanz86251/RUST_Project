@@ -159,6 +159,22 @@ impl<K: Clone> Trend<K> {
         };
     }
 }
+pub fn timephase_fromnow(n: u32) -> ((i32, u32), (i32, u32)) {
+    let now = Utc::now().date_naive();
+    let now_y = now.year();
+    let now_m = now.month();
+    let mut from_y = now_y;
+    let mut from_m = now_m;
+    for _ in 1..n {
+        if from_m == 1 {
+            from_m = 12;
+            from_y -= 1;
+        } else {
+            from_m -= 1;
+        }
+    }
+    ((from_y, from_m), (now_y, now_m))
+}
 impl Ledger {
     fn filter_value(
         s: &Monthstats,
@@ -181,6 +197,7 @@ impl Ledger {
                 .unwrap_or(0.0),
         }
     }
+
     pub fn trans_categoryid2name(&self, catid: CategoryId) -> String {
         for i in &self.category {
             if i.id == catid {

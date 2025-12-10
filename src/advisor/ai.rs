@@ -1,16 +1,44 @@
-use crate::stat::Ledger;
 use crate::stat::datatype::{AccountId, CategoryId, UserId};
-
+use crate::stat::{Ledger, timephase_fromnow};
 use anyhow::{Context, Result, anyhow};
 use candle_core::quantized::gguf_file;
 use candle_core::{Device, Tensor};
 use candle_transformers::generation::{LogitsProcessor, Sampling};
 use candle_transformers::models::quantized_qwen2::ModelWeights;
+use chrono::{Datelike, Utc};
 use hf_hub::api::sync::Api;
 use hf_hub::{Repo, RepoType};
 use std::fmt::Write as FmtWrite;
 use std::path::PathBuf;
 use tokenizers::Tokenizer;
+fn _device() -> Device {
+    #[cfg(feature = "cuda")]
+    {
+        let cuda = Device::new_cuda(0);
+        match cuda {
+            Ok(c) => {
+                println!("find cuda");
+                return c;
+            }
+            Err(e) => {
+                eprintln!("⚠ cuda init failed: {e}");
+            }
+        }
+    }
+    #[cfg(feature = "metal")]
+    {
+        let metal = Device::new_metal(0);
+        match metal {
+            Ok(c) => {
+                println!("find metal");
+                return c;
+            }
+            Err(_) => {}
+        }
+    }
+    println!("device= cpu");
+    Device::Cpu
+}
 #[derive(Debug, Clone)]
 pub struct Localmodel {
     pub name: String,
@@ -28,7 +56,7 @@ pub struct Generationcfg {
 impl Default for Generationcfg {
     fn default() -> Self {
         Self {
-            max_new_tok: 200,
+            max_new_tok: 256,
             temperature: 0.7,
             top_p: 0.9,
         }
@@ -80,10 +108,8 @@ impl Model {
             Ok(t) => t,
             Err(_) => return Err(anyhow!("can't load tokenizer file")),
         };
-        //may need to support MAC or CUDA later, but ..................................................
-        //T^T where is my cuda_if_available???
 
-        let device = Device::Cpu;
+        let device = _device();
         let mut f = std::fs::File::open(&file.gguf)?;
         let temp = gguf_file::Content::read(&mut f)?;
         let weight = ModelWeights::from_gguf(temp, &mut f, &device)?;
@@ -141,5 +167,77 @@ impl Model {
         let out_tok = tok[pre_len..].to_vec();
         let output = self.tokenizer.decode(&out_tok, true).unwrap();
         Ok(output)
+    }
+    pub fn build_prompt(
+        &self,
+        ledger: &Ledger,
+        userid: UserId,
+        top_k: usize,
+        pastmonths: u32,
+    ) -> String {
+        let timephase = timephase_fromnow(pastmonths);
+        let trend = ledger.data_linetrend(userid, timephase, None, None);
+        let lm = timephase.1.1;
+        let ly = timephase.1.0;
+        let top_cat = ledger.top_category(userid, ((ly, lm), (ly, lm)), None, top_k, Some(true));
+        let mut prompt = String::new();
+        prompt.push_str("You are a personal finance assistant.\n");
+        prompt.push_str("Recent monthly totals:\n");
+        for i in 0..trend.axis.len() {
+            let y = trend.axis[i].0;
+            let m = trend.axis[i].1;
+            let sum = trend.summary[i];
+            if sum < 0.0 {
+                let spend = -sum;
+                prompt.push_str(&format!(
+                    "- {y:04}-{m:02}: spend {spend:.2} CAD\n",
+                    y = y,
+                    m = m,
+                    spend = spend
+                ));
+            } else {
+                prompt.push_str(&format!(
+                    "- {y:04}-{m:02}: total {sum:.2} CAD\n",
+                    y = y,
+                    m = m,
+                    sum = sum
+                ));
+            }
+        }
+        prompt.push_str(&format!(
+            "Main spending categories in {ly:04}-{lm:02}:\n",
+            ly = ly,
+            lm = lm
+        ));
+        for i in 0..top_cat.axis.len() {
+            let name = &top_cat.axis[i];
+            let out = top_cat.outcome[i].abs();
+            prompt.push_str(&format!("- {name}: {out:.2} CAD\n", name = name, out = out));
+        }
+        prompt.push_str("\n");
+        prompt.push_str(
+            "Now, in less than 200 English words:\n\
+1) Explain the main risks or problems in my spending.\n\
+2) Give 2–3 specific suggestions to improve my situation.\n\
+Focus on categories and behaviours, not on exact amounts.\n",
+        );
+        prompt
+    }
+    pub fn generate_advicepair(
+        &mut self,
+        ledger: &Ledger,
+        userid: UserId,
+        top_k: usize,
+        pastmonths: u32,
+        cfg: &Generationcfg,
+    ) -> Result<Vec<String>> {
+        let prompt = self.build_prompt(ledger, userid, top_k, pastmonths);
+        let cad1 = self.generation(&prompt, cfg)?;
+        let cad2 = self.generation(&prompt, cfg)?;
+        let mut result = Vec::new();
+        result.push(prompt);
+        result.push(cad1);
+        result.push(cad2);
+        return Ok(result);
     }
 }

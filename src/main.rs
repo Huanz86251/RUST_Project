@@ -143,5 +143,27 @@ fn main() {
                 e.id, e.accountid, e.amount, e.desc
             );
         }
+        let mut model = match Model::new() {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!("Failed to load AI model: {e}");
+                return;
+            }
+        };
+        let modelcfg = Generationcfg::default();
+        let samples = match model.generate_advicepair(&ledger, uid, 3, 3, &modelcfg) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("Failed to generate AI advice: {e}");
+                return;
+            }
+        };
+        let prompt = &samples[0];
+        let advice1 = &samples[1];
+        let advice2 = &samples[2];
+
+        println!("--- Prompt---\n{}\n", prompt);
+        println!("--- Advice #1 ---\n{}\n", advice1);
+        println!("--- Advice #2 ---\n{}\n", advice2);
     }
 }
