@@ -1,5 +1,6 @@
+pub mod advisor;
 pub mod stat;
-
+use advisor::*;
 use stat::*;
 
 fn print_trend<K: std::fmt::Debug>(title: &str, t: &Trend<K>) {
