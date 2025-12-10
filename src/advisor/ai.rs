@@ -1,14 +1,12 @@
-use crate::stat::datatype::{AccountId, CategoryId, UserId};
+use crate::stat::datatype::*;
 use crate::stat::{Ledger, timephase_fromnow};
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Result, anyhow};
 use candle_core::quantized::gguf_file;
 use candle_core::{Device, Tensor};
 use candle_transformers::generation::{LogitsProcessor, Sampling};
 use candle_transformers::models::quantized_qwen2::ModelWeights;
-use chrono::{Datelike, Utc};
 use hf_hub::api::sync::Api;
 use hf_hub::{Repo, RepoType};
-use std::fmt::Write as FmtWrite;
 use std::path::PathBuf;
 use tokenizers::Tokenizer;
 fn _device() -> Device {
@@ -20,9 +18,7 @@ fn _device() -> Device {
                 println!("find cuda");
                 return c;
             }
-            Err(e) => {
-                eprintln!("⚠ cuda init failed: {e}");
-            }
+            Err(_) => {}
         }
     }
     #[cfg(feature = "metal")]
