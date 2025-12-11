@@ -1,4 +1,5 @@
 pub mod stat;
+pub mod tui;
 
 use stat::*;
 
@@ -12,9 +13,7 @@ fn print_trend<K: std::fmt::Debug>(title: &str, t: &Trend<K>) {
     }
 }
 
-fn main() {
-    let ledger: Ledger = Ledger::build_demo_ledger();
-
+fn test(ledger: Ledger){
     println!("== Account Summary ==\n");
     for s in ledger.all_account_summary() {
         println!(
@@ -142,5 +141,15 @@ fn main() {
                 e.id, e.accountid, e.amount, e.desc
             );
         }
+    }  
+}
+
+fn main() {
+    let ledger: Ledger = Ledger::build_demo_ledger();
+
+    if let Err(e) = tui::run_tui(ledger) {
+        eprintln!("Error running TUI: {e}");
     }
+    // test(ledger);
+
 }
