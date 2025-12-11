@@ -1,38 +1,20 @@
+//base on offical Candle repository https://github.com/huggingface/candle/blob/main/candle-examples/examples/quantized-qwen2-instruct/main.rs, with own build
 use crate::stat::datatype::*;
 use crate::stat::{Ledger, timephase_fromnow};
 use anyhow::{Result, anyhow};
 use candle_core::quantized::gguf_file;
 use candle_core::{Device, Tensor};
 use candle_transformers::generation::{LogitsProcessor, Sampling};
-
 use candle_transformers::models::quantized_qwen2::ModelWeights as Qwen2;
 use hf_hub::api::sync::Api;
 use hf_hub::{Repo, RepoType};
+use serde::Deserialize;
+use serde_json::Value as JsonValue;
 use std::path::PathBuf;
 use tokenizers::Tokenizer;
 pub const TOOL: &str = r#"
-{"name":"top_spend_recent",
- "description":"Get top spending categories over the last N months, based on outcome (negative amounts).",
- "parameters":{
-   "type":"object",
-   "properties":{
-     "months":{
-       "type":"integer",
-       "description":"How many recent months to look back, counting current month as 1.",
-       "minimum":1,
-       "maximum":24
-     },
-     "top_k":{
-       "type":"integer",
-       "description":"How many top categories to return.",
-       "minimum":1,
-       "maximum":10
-     }
-   },
-   "required":["months"]
- }}
 {"name":"month_total_spend",
- "description":"Get total spending for a given year and month (all accounts, all categories).",
+ "description":"Get total spending for a given year and month (all accounts, all categories). Spending is returned as a positive number in CAD.",
  "parameters":{
    "type":"object",
    "properties":{
@@ -49,55 +31,46 @@ pub const TOOL: &str = r#"
    },
    "required":["year","month"]
  }}
-{"name":"month_top_category",
- "description":"Get the top spending categories for a given year and month and their share of total spending.",
+{"name":"month_total_income",
+ "description":"Get total income for a given year and month (all accounts, all categories). Income is returned as a positive number in CAD.",
  "parameters":{
    "type":"object",
    "properties":{
-     "year":{"type":"integer"},
+     "year":{
+       "type":"integer",
+       "description":"4-digit year, e.g. 2025."
+     },
      "month":{
        "type":"integer",
+       "description":"Calendar month 1-12.",
        "minimum":1,
        "maximum":12
-     },
-     "top_k":{
-       "type":"integer",
-       "description":"How many categories to return.",
-       "minimum":1,
-       "maximum":10
      }
    },
    "required":["year","month"]
  }}
-{"name":"add_simple_expense",
- "description":"Add a single expense entry to the local ledger (best-effort helper).",
- "parameters":{
-   "type":"object",
-   "properties":{
-     "date":{
-       "type":"string",
-       "description":"Date in YYYY-MM-DD format."
-     },
-     "account_name":{
-       "type":"string",
-       "description":"Account name, e.g. 'Chequing' or 'Visa'."
-     },
-     "category_name":{
-       "type":"string",
-       "description":"Category name such as 'Food' or 'Rent'."
-     },
-     "amount":{
-       "type":"number",
-       "description":"Expense amount in CAD, positive number."
-     },
-     "description":{
-       "type":"string",
-       "description":"Optional short memo."
-     }
-   },
-   "required":["date","account_name","category_name","amount"]
- }}
+ {"name":"recent_top_category",
+  "description":"Get the top spending categories over the last N months, counting current month as 1.",
+  "parameters":{
+    "type":"object",
+    "properties":{
+      "months":{
+        "type":"integer",
+        "description":"How many recent months to look back, counting current month as 1.",
+        "minimum":1,
+        "maximum":24
+      },
+      "top_k":{
+        "type":"integer",
+        "description":"How many categories to return.",
+        "minimum":1,
+        "maximum":10
+      }
+    },
+    "required":["months"]
+  }}
 "#;
+
 fn _device() -> Device {
     #[cfg(feature = "cuda")]
     {
@@ -123,6 +96,125 @@ fn _device() -> Device {
     }
     println!("device= cpu");
     Device::Cpu
+}
+#[derive(Debug, Deserialize)]
+pub struct Toolcall {
+    pub name: String,
+    pub arguments: JsonValue,
+}
+fn extract_fun(raw: &str) -> Option<Toolcall> {
+    let start = "<tool_call>";
+    let end = "</tool_call>";
+    let start_pos = match raw.find(start) {
+        Some(pos) => pos + start.len(),
+        None => return None,
+    };
+    let end_pos = match raw.find(end) {
+        Some(pos) => pos,
+        None => return None,
+    };
+    let slice_raw = &raw[start_pos..end_pos];
+    let json_raw = slice_raw.trim();
+    if json_raw.is_empty() {
+        return None;
+    }
+    let json: serde_json::Result<Toolcall> = serde_json::from_str(json_raw);
+    let toolcall = match json {
+        Ok(v) => v,
+        Err(_) => {
+            return None;
+        }
+    };
+    return Some(toolcall);
+}
+fn tool_month_total_spend(ledger: &Ledger, userid: UserId, args: &JsonValue) -> String {
+    let y = match args.get("year") {
+        Some(v) => match v.as_i64() {
+            Some(i) => i as i32,
+            None => return "given parameter wrong, function give error.".to_string(),
+        },
+        None => return "given parameter wrong, function give error.".to_string(),
+    };
+    let m = match args.get("month") {
+        Some(v) => match v.as_i64() {
+            Some(i) => i as u32,
+            None => return "given parameter wrong, function give error.".to_string(),
+        },
+        None => return "given parameter wrong, function give error.".to_string(),
+    };
+
+    let sum = ledger.month_summary(userid, y, m, None, None, Some(true), None);
+    let spend = -sum;
+    format!(
+        "Total spending in {y:04}-{m:02} is {spend:.2} CAD.",
+        y = y,
+        m = m,
+        spend = spend
+    )
+    .to_string()
+}
+fn tool_month_total_income(ledger: &Ledger, userid: UserId, args: &JsonValue) -> String {
+    let y = match args.get("year") {
+        Some(v) => match v.as_i64() {
+            Some(i) => i as i32,
+            None => return "given parameter wrong, function give error.".to_string(),
+        },
+        None => return "given parameter wrong, function give error.".to_string(),
+    };
+    let m = match args.get("month") {
+        Some(v) => match v.as_i64() {
+            Some(i) => i as u32,
+            None => return "given parameter wrong, function give error.".to_string(),
+        },
+        None => return "given parameter wrong, function give error.".to_string(),
+    };
+
+    let sum = ledger.month_summary(userid, y, m, None, None, Some(false), None);
+    let spend = sum;
+    format!(
+        "Total income in {y:04}-{m:02} is {spend:.2} CAD.",
+        y = y,
+        m = m,
+        spend = spend
+    )
+    .to_string()
+}
+fn tool_recent_top_category(ledger: &Ledger, userid: UserId, args: &JsonValue) -> String {
+    let m = match args.get("months") {
+        Some(v) => match v.as_i64() {
+            Some(i) => i as u32,
+            None => return "given parameter wrong, function give error.".to_string(),
+        },
+        None => return "given parameter wrong, function give error.".to_string(),
+    };
+    let k = match args.get("top_k") {
+        Some(v) => match v.as_u64() {
+            Some(i) => i as usize,
+            None => return "given parameter wrong, function give error.".to_string(),
+        },
+        None => 5 as usize,
+    };
+    let timephase = timephase_fromnow(m);
+    let trend = ledger.top_category(userid, timephase, None, k, Some(true));
+    let mut out = String::new();
+    for (cat, val) in trend.axis.iter().zip(trend.outcome.iter()) {
+        let spend = val.abs();
+        out.push_str(&format!(
+            "- {cat}:{spend:.2}CAD\n",
+            cat = cat,
+            spend = spend
+        ));
+    }
+    out
+}
+fn run_toolcall(toolcall: &Toolcall, ledger: &Ledger, userid: UserId) -> String {
+    match toolcall.name.as_str() {
+        "month_total_spend" => tool_month_total_spend(ledger, userid, &toolcall.arguments),
+        "month_total_income" => tool_month_total_income(ledger, userid, &toolcall.arguments),
+        "recent_top_category" => tool_recent_top_category(ledger, userid, &toolcall.arguments),
+        //"add_simple_expense" => tool_add_simple_expense(ledger, userid, &toolcall.arguments),
+        _ => "unknown tool name".to_string(),
+    }
 }
 #[derive(Debug, Clone, Copy)]
 pub enum Modeltype {
@@ -179,7 +271,7 @@ impl Modeltype {
     fn apply_into_tool_chat_template(&self, user: &str, functionintro: &str) -> String {
         let mut template = String::new();
         template.push_str("<|im_start|>system\nYou are a personal finance assistant.");
-        template.push_str("You may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n",);
+        template.push_str("You must call exactly one function that best matches the user query.\nDo not call more than one function.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n",);
         template.push_str(functionintro);
         template.push_str("\n</tools>\n\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\n<tool_call>\n{\"name\": <function-name>, \"arguments\": <args-json-object>}\n</tool_call><|im_end|>\n",);
         template.push_str("<|im_start|>user\n");
@@ -192,7 +284,7 @@ impl Modeltype {
         template.push_str(premessage);
         template.push_str("<|im_end|>\n<|im_start|>user\n<tool_response>\n");
         template.push_str(functionresult);
-        template.push_str("\n</tool_response><|im_end|>\n<|im_start|>assistant\n");
+        template.push_str("\n</tool_response>Please analyze these results and give 2–3 positive, practical suggestions for my finances.<|im_end|>\n<|im_start|>assistant\n");
         template
     }
 }
@@ -283,20 +375,8 @@ impl Model {
     pub fn new() -> Result<Self> {
         Self::new_with(Modeltype::Qwen25_1_5B)
     }
-    //https://github.com/huggingface/candle/blob/main/candle-examples/examples/quantized-qwen2-instruct/main.rs
-    pub fn generation(
-        &mut self,
-        content: &str,
-        cfg: &Generationcfg,
-        usetool: Option<bool>,
-    ) -> Result<String> {
-        let txt = if usetool.unwrap_or(false) {
-            self.name.apply_into_tool_chat_template(content, TOOL)
-        } else {
-            self.name.apply_chat_template(content)
-        };
-
-        let txt_tok = self.tokenizer.encode(txt, true).unwrap();
+    pub fn generation_core(&mut self, content: &str, cfg: &Generationcfg) -> Result<String> {
+        let txt_tok = self.tokenizer.encode(content, true).unwrap();
         let mut tok = txt_tok.get_ids().to_vec();
         let pre_len = tok.len();
         let samp = if cfg.temperature <= 0.0 {
@@ -337,6 +417,12 @@ impl Model {
         let output = self.tokenizer.decode(&out_tok, true).unwrap();
         Ok(output)
     }
+    pub fn generation(&mut self, content: &str, cfg: &Generationcfg) -> Result<String> {
+        let txt = self.name.apply_chat_template(content);
+
+        self.generation_core(&txt, cfg)
+    }
+
     pub fn build_prompt(
         &self,
         ledger: &Ledger,
@@ -401,12 +487,42 @@ Focus on categories and behaviours, not on exact amounts.\n",
         cfg: &Generationcfg,
     ) -> Result<Vec<String>> {
         let prompt = self.build_prompt(ledger, userid, top_k, pastmonths);
-        let cad1 = self.generation(&prompt, cfg, None)?;
-        let cad2 = self.generation(&prompt, cfg, None)?;
+        let cad1 = self.generation(&prompt, cfg)?;
+        let cad2 = self.generation(&prompt, cfg)?;
         let mut result = Vec::new();
         result.push(prompt);
         result.push(cad1);
         result.push(cad2);
         return Ok(result);
+    }
+    pub fn answer_withtool(
+        &mut self,
+        content: &str,
+        ledger: &Ledger,
+        userid: UserId,
+        cfg: &Generationcfg,
+    ) -> Result<String> {
+        let prompt_first = self.name.apply_into_tool_chat_template(content, TOOL);
+        let first_turn = match self.generation_core(&prompt_first, cfg) {
+            Ok(v) => v,
+            Err(e) => return Err(e),
+        };
+        let fc = match extract_fun(&first_turn) {
+            Some(f) => f,
+            None => {
+                let backup = match self.generation(content, cfg) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                };
+                return Ok(backup);
+            }
+        };
+        let r = run_toolcall(&fc, ledger, userid);
+        let second_prompt = self.name.apply_tool_out_chat_template(&prompt_first, &r);
+        let final_a = match self.generation_core(&second_prompt, cfg) {
+            Ok(v) => v,
+            Err(e) => return Err(e),
+        };
+        Ok(final_a)
     }
 }

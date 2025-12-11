@@ -18,9 +18,8 @@ fn print_trend<K: std::fmt::Debug>(title: &str, t: &Trend<K>) {
 fn main() {
     let ledger: Ledger = Ledger::build_demo_ledger();
 
-
     //  commented out to disable TUI for this example, comment all code below as well
-    // if let Err(e) = tui::run_tui(ledger) { 
+    // if let Err(e) = tui::run_tui(ledger) {
     //     eprintln!("Error running TUI: {e}");
     // }
 
@@ -173,5 +172,17 @@ fn main() {
         println!("--- Prompt---\n{}\n", prompt);
         println!("--- Advice #1 ---\n{}\n", advice1);
         println!("--- Advice #2 ---\n{}\n", advice2);
+        let question = "What category I spend most in last 3 months, Can you give me some advise?";
+
+        match model.answer_withtool(question, &ledger, uid, &modelcfg) {
+            Ok(answer) => {
+                println!("--- Tool-based QA ---");
+                println!("Q: {}", question);
+                println!("A:\n{}\n", answer);
+            }
+            Err(e) => {
+                eprintln!("Failed to answer with tool: {e}");
+            }
+        }
     }
 }
