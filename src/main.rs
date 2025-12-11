@@ -143,7 +143,7 @@ fn main() {
                 e.id, e.accountid, e.amount, e.desc
             );
         }
-        let mut model = match Model::new() {
+        let mut model = match Model::new_with(Modeltype::Qwen25_3B) {
             Ok(m) => m,
             Err(e) => {
                 eprintln!("Failed to load AI model: {e}");
