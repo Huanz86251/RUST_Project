@@ -11,8 +11,15 @@ use dotenvy;
 pub fn app() -> axum::Router<AppState>{
     let protected = Router::<AppState>::new()
         .route("/", get(services::root))
+        //accounts
         .route("/accounts", post(services::create_account_handler))
-        .route("/accounts",get(services::list_accounts))
+        .route("/accounts",get(services::list_accounts_handler))
+        // categories
+        .route("/categories", post(services::create_category_handler))
+        .route("/categories", get(services::list_categories_handler))
+        .route("/transactions", post(services::create_transaction_handler))
+        // transactions
+
         .layer(from_fn(auth::auth_middleware));
     Router::new()
         // `GET /` goes to `root`
@@ -21,11 +28,7 @@ pub fn app() -> axum::Router<AppState>{
         .route("/auth/login", post(auth::login))
         
         .merge(protected)
-        // //accounts
 
-        // // categories
-        // .route("/categories", post(create_category).get(list_categories))
-        // // transactions
         // .route("/transactions", post(create_transaction).get(list_transactions));
 }
 
