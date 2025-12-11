@@ -1,0 +1,21 @@
+[package]
+name = "backend"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono","rust_decimal", "tls-rustls"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+bigdecimal = { version = "0.4", features = ["serde"] }
+anyhow = "1"
+dotenvy = "0.15"
+serde = { version = "1", features = ["derive"] }
+argon2 = "0.5"
+rand_core = "0.6"
+axum = "0.8.7"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+jsonwebtoken = { version = "10.2.0", features = ["rust_crypto"] }
+rust_decimal = { version = "1", features = ["serde"] }
