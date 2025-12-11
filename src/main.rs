@@ -1,6 +1,6 @@
+pub mod advisor;
 pub mod stat;
-pub mod tui;
-
+use advisor::*;
 use stat::*;
 
 fn print_trend<K: std::fmt::Debug>(title: &str, t: &Trend<K>) {
@@ -13,7 +13,15 @@ fn print_trend<K: std::fmt::Debug>(title: &str, t: &Trend<K>) {
     }
 }
 
-fn test(ledger: Ledger){
+fn main() {
+    let ledger: Ledger = Ledger::build_demo_ledger();
+
+
+    //  commented out to disable TUI for this example
+    // if let Err(e) = tui::run_tui(ledger) { 
+    //     eprintln!("Error running TUI: {e}");
+    // }
+
     println!("== Account Summary ==\n");
     for s in ledger.all_account_summary() {
         println!(
@@ -141,15 +149,27 @@ fn test(ledger: Ledger){
                 e.id, e.accountid, e.amount, e.desc
             );
         }
-    }  
-}
+        let mut model = match Model::new() {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!("Failed to load AI model: {e}");
+                return;
+            }
+        };
+        let modelcfg = Generationcfg::default();
+        let samples = match model.generate_advicepair(&ledger, uid, 3, 3, &modelcfg) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("Failed to generate AI advice: {e}");
+                return;
+            }
+        };
+        let prompt = &samples[0];
+        let advice1 = &samples[1];
+        let advice2 = &samples[2];
 
-fn main() {
-    let ledger: Ledger = Ledger::build_demo_ledger();
-
-    if let Err(e) = tui::run_tui(ledger) {
-        eprintln!("Error running TUI: {e}");
+        println!("--- Prompt---\n{}\n", prompt);
+        println!("--- Advice #1 ---\n{}\n", advice1);
+        println!("--- Advice #2 ---\n{}\n", advice2);
     }
-    // test(ledger);
-
 }

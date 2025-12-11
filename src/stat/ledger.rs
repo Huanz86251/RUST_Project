@@ -159,6 +159,22 @@ impl<K: Clone> Trend<K> {
         };
     }
 }
+pub fn timephase_fromnow(n: u32) -> ((i32, u32), (i32, u32)) {
+    let now = Utc::now().date_naive();
+    let now_y = now.year();
+    let now_m = now.month();
+    let mut from_y = now_y;
+    let mut from_m = now_m;
+    for _ in 1..n {
+        if from_m == 1 {
+            from_m = 12;
+            from_y -= 1;
+        } else {
+            from_m -= 1;
+        }
+    }
+    ((from_y, from_m), (now_y, now_m))
+}
 impl Ledger {
     fn filter_value(
         s: &Monthstats,
@@ -182,6 +198,26 @@ impl Ledger {
         }
     }
 
+    pub fn trans_categoryid2name(&self, catid: CategoryId) -> String {
+        for i in &self.category {
+            if i.id == catid {
+                return i.name.clone();
+            }
+        }
+        let mut txt = String::new();
+        txt.push_str(&catid.to_string());
+        return txt;
+    }
+    pub fn trans_accountid2name(&self, accid: AccountId) -> String {
+        for i in &self.account {
+            if i.id == accid {
+                return i.name.clone();
+            }
+        }
+        let mut txt = String::new();
+        txt.push_str(&accid.to_string());
+        return txt;
+    }
     ///return account current balance
     pub fn cal_balance(&self, accountid: AccountId) -> f64 {
         let current = self
@@ -360,7 +396,7 @@ impl Ledger {
         userid: UserId,
         timephase: ((i32, u32), (i32, u32)),
         accountid: Option<AccountId>,
-    ) -> Trend<CategoryId> {
+    ) -> Trend<String> {
         let stat = self.monthstats(userid, timephase);
         let mut set = HashSet::<CategoryId>::new();
         for i in stat.values() {
@@ -384,7 +420,8 @@ impl Ledger {
                 v_out += Self::filter_value(j, accountid, Some(i), Purpose::Outcome);
                 v_sum += Self::filter_value(j, accountid, Some(i), Purpose::All);
             }
-            axis.push(i);
+
+            axis.push(self.trans_categoryid2name(i));
             inc.push(v_inc);
             out.push(v_out);
             sum.push(v_sum);
@@ -402,7 +439,7 @@ impl Ledger {
         userid: UserId,
         timephase: ((i32, u32), (i32, u32)),
         category: Option<CategoryId>,
-    ) -> Trend<AccountId> {
+    ) -> Trend<String> {
         let stat = self.monthstats(userid, timephase);
         let mut set = HashSet::<AccountId>::new();
         for i in stat.values() {
@@ -425,7 +462,8 @@ impl Ledger {
                 v_out += Self::filter_value(j, Some(i), category, Purpose::Outcome);
                 v_sum += Self::filter_value(j, Some(i), category, Purpose::All);
             }
-            axis.push(i);
+
+            axis.push(self.trans_accountid2name(i));
             inc.push(v_inc);
             out.push(v_out);
             sum.push(v_sum);
@@ -490,7 +528,7 @@ impl Ledger {
         accountid: Option<AccountId>,
         top_k: usize,
         onlyspend: Option<bool>,
-    ) -> Trend<CategoryId> {
+    ) -> Trend<String> {
         let temp = self.category_pietrend(userid, timephase, accountid);
         let purpose = Purpose::trans(onlyspend);
         Self::rank_trend(temp, purpose, top_k)
@@ -506,7 +544,7 @@ impl Ledger {
         category: Option<CategoryId>,
         top_k: usize,
         onlyspend: Option<bool>,
-    ) -> Trend<AccountId> {
+    ) -> Trend<String> {
         let temp = self.account_pietrend(userid, timephase, category);
         let purpose = Purpose::trans(onlyspend);
         Self::rank_trend(temp, purpose, top_k)
