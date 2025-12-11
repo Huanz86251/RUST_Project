@@ -20,9 +20,9 @@ fn main() {
 
 
     //  commented out to disable TUI for this example, comment all code below as well
-    if let Err(e) = tui::run_tui(ledger) { 
-        eprintln!("Error running TUI: {e}");
-    }
+    // if let Err(e) = tui::run_tui(ledger) { 
+    //     eprintln!("Error running TUI: {e}");
+    // }
 
     println!("== Account Summary ==\n");
     for s in ledger.all_account_summary() {
