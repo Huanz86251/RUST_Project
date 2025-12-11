@@ -18,6 +18,7 @@ pub fn app() -> axum::Router<AppState>{
         .route("/categories", post(services::create_category_handler))
         .route("/categories", get(services::list_categories_handler))
         .route("/transactions", post(services::create_transaction_handler))
+        .route("/transactions", get(services::list_transactions_handler))
         // transactions
 
         .layer(from_fn(auth::auth_middleware));
