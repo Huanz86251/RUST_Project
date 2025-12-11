@@ -318,7 +318,6 @@ fn draw_accounts(f: &mut Frame<'_>, area: Rect, app: &App) {
 
 // CategoryStats screen, shows top categories by outcome
 fn draw_category_stats(f: &mut Frame<'_>, area: Rect, app: &App) {
-    use crate::stat::datatype::CategoryId;
 
     let timephase = (app.start_month, app.end_month);
     let trend = app
@@ -329,14 +328,7 @@ fn draw_category_stats(f: &mut Frame<'_>, area: Rect, app: &App) {
     // (name, income, outcome, net, percentage_of_spend)
     let mut data: Vec<(String, f64, f64, f64, f64)> = Vec::new();
     for i in 0..trend.axis.len() {
-        let cat_id: CategoryId = trend.axis[i];
-        let name = app
-            .ledger
-            .category
-            .iter()
-            .find(|c| c.id == cat_id)
-            .map(|c| c.name.clone())
-            .unwrap_or_else(|| format!("{:?}", cat_id));
+        let name = trend.axis[i].clone(); 
         let income = trend.income[i];
         let outcome = trend.outcome[i];
         let net = trend.summary[i];
@@ -394,7 +386,6 @@ fn draw_category_stats(f: &mut Frame<'_>, area: Rect, app: &App) {
 
 // AccountStats screen, shows top accounts by outcome.
 fn draw_account_stats(f: &mut Frame<'_>, area: Rect, app: &App) {
-    use crate::stat::datatype::AccountId;
 
     let timephase = (app.start_month, app.end_month);
     let trend = app
@@ -405,14 +396,7 @@ fn draw_account_stats(f: &mut Frame<'_>, area: Rect, app: &App) {
 
     let mut data: Vec<(String, f64, f64, f64, f64)> = Vec::new();
     for i in 0..trend.axis.len() {
-        let acc_id: AccountId = trend.axis[i];
-        let name = app
-            .ledger
-            .account
-            .iter()
-            .find(|a| a.id == acc_id)
-            .map(|a| a.name.clone())
-            .unwrap_or_else(|| format!("{:?}", acc_id));
+        let name = trend.axis[i].clone(); 
         let inc = trend.income[i];
         let out = trend.outcome[i];
         let net = trend.summary[i];
