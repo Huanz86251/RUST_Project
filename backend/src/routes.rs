@@ -17,22 +17,20 @@ pub fn app() -> axum::Router<AppState>{
         // categories
         .route("/categories", post(services::create_category_handler))
         .route("/categories", get(services::list_categories_handler))
+        // transactions
         .route("/transactions", post(services::create_transaction_handler))
         .route("/transactions", get(services::list_transactions_handler))
-        // transactions
+        //ledger
+        .route("/ledger",get(services::get_ledger_snapshot_handler))
+        
 
         .layer(from_fn(auth::auth_middleware));
     Router::new()
-        // `GET /` goes to `root`
         //auth
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
-        
         .merge(protected)
-
-        // .route("/transactions", post(create_transaction).get(list_transactions));
 }
-
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,

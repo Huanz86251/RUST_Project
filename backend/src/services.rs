@@ -16,7 +16,73 @@ use sqlx::types::chrono::NaiveDate;
 pub async fn root(Extension(user): Extension<AuthUser>) -> String {
     format!("Hello, user_id={}", user.user_id)
 }
+pub async fn get_ledger_snapshot_handler(
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Result<Json<CloudLedger>, (StatusCode, String)> {
+    let snapshot = build_ledger_snapshot(&state.pool, user.user_id)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}")))?;
 
+    Ok(Json(snapshot))
+}
+pub async fn build_ledger_snapshot(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<CloudLedger, sqlx::Error> {
+    let user = sqlx::query_as!(
+        UserDto,
+        r#"
+        SELECT
+            id,
+            email,
+            created_at
+        FROM users
+        WHERE id = $1
+        "#,
+        user_id,
+    )
+    .fetch_one(pool)
+    .await?;
+
+
+    let acc_query = AccountQuery {
+        limit: Some(1000),          
+        offset: Some(0),
+        account_type: None,
+        currency: None,
+        query: None,
+        sort: Some("created_at".to_string()),
+        order: Some("desc".to_string()),
+        include_balance: Some(false), 
+    };
+
+    let accounts = list_accounts_db(pool, user_id, &acc_query).await?;
+
+
+    let categories = list_categories_db(pool, user_id).await?;
+
+
+    let tx_limit = 1000;
+    let tx_offset = 0;
+    let transactions = list_transactions_db(pool, user_id, tx_limit, tx_offset).await?;
+
+
+    let mut all_entries: Vec<EntriesDto> = Vec::new();
+    for tx in &transactions {
+        for e in &tx.entries {
+            all_entries.push(e.clone());
+        }
+    }
+
+    Ok(CloudLedger {
+        user,
+        accounts,
+        categories,
+        transactions,
+        entries: all_entries,
+    })
+}
 pub async fn create_account_handler(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -419,7 +485,7 @@ pub struct EntriesRow {
     pub amount: Decimal,   // NUMERIC(14,2)
     pub note: Option<String>,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct EntriesDto {
     pub id: i64,
     pub tx_id: Uuid,
@@ -460,7 +526,7 @@ pub struct CreateTransactionsReq {
     pub entries: Vec<CreateEntryReq>,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize,Clone)]
 pub struct TransactionsDto {
     pub id: Uuid,              // BIGSERIAL -> i64
     pub occurred_at: NaiveDate, // TIMESTAMPTZ
@@ -471,17 +537,6 @@ pub struct TransactionsDto {
     
 }
 
-// impl From<TransactionsRow> for TransactionsDto {
-//     fn from(t: TransactionsRow) -> Self {
-//         Self {
-//             id: t.id,
-//             occurred_at: t.occurred_at,
-//             payee: t.payee,
-//             memo: t.memo,
-//             created_at: t.created_at,
-//         }
-//     }
-// }
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct CategoriesRow {
     pub id: i64,              // BIGSERIAL -> i64
@@ -496,7 +551,7 @@ pub struct CreateCategoriesReq {
     pub name: String,         // TEXT
 }
 
-#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+#[derive(Debug, serde::Serialize, sqlx::FromRow,Clone)]
 pub struct CategoriesDto {
     pub id: i64,
     pub parent_id: Option<i64>,
@@ -533,7 +588,7 @@ pub struct CreateAccountReq {
     pub opening_balance: Option<Decimal>, 
 }
 
-#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+#[derive(Debug, serde::Serialize, sqlx::FromRow,Clone)]
 pub struct AccountDto {
     pub id: i64,
     pub name: String,
@@ -556,3 +611,19 @@ impl From<AccountRow> for AccountDto {
     }
 }
 
+#[derive(Debug, Serialize, sqlx::FromRow,Clone)]
+pub struct UserDto {
+    pub id: Uuid,
+    pub email: String,
+    pub created_at: DateTime<Utc>,
+}
+
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CloudLedger {
+    pub user: UserDto,
+    pub accounts: Vec<AccountDto>,
+    pub categories: Vec<CategoriesDto>,
+    pub transactions: Vec<TransactionsDto>,
+    pub entries: Vec<EntriesDto>, 
+}
