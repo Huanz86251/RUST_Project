@@ -251,6 +251,78 @@ pub async fn list_categories_db(
 
     Ok(rows)
 }
+pub async fn list_transactions_handler(
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Query(_q): Query<ListTxQuery>,
+) -> Result<Json<Vec<TransactionsDto>>, (StatusCode, String)> {
+    let limit = _q.limit.unwrap_or(50).clamp(1, 100);
+    let offset = _q.offset.unwrap_or(0).max(0); 
+    let rows = list_transactions_db(&state.pool, user.user_id,limit, offset)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}")))?;
+
+    Ok(Json(rows))
+}
+pub async fn list_transactions_db(
+    pool: &PgPool,
+    user_id: Uuid,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<TransactionsDto>, sqlx::Error> {
+    let tx_rows = sqlx::query_as!(
+        TransactionsRow,
+        r#"
+        SELECT
+            id, user_id, occurred_at, payee, memo, created_at
+        FROM transactions 
+        WHERE user_id = $1
+        ORDER BY occurred_at DESC, created_at DESC
+        LIMIT $2 OFFSET $3
+        "#,
+        user_id,
+        limit,
+        offset,
+    )
+    .fetch_all(pool)
+    .await?;
+    if tx_rows.is_empty() {
+        return Ok(Vec::new());
+    }
+    let tx_ids: Vec<Uuid> = tx_rows.iter().map(|tx| tx.id).collect();
+    let entry_rows = sqlx::query_as!(
+        EntriesRow,
+        r#"
+        SELECT
+            id, user_id, tx_id, account_id, category_id, amount, note
+        FROM entries
+        WHERE user_id = $1 
+        AND tx_id = ANY($2)
+        ORDER BY tx_id,id
+        "#,
+        user_id,
+        &tx_ids[..] as &[Uuid],
+    )
+    .fetch_all(pool)
+    .await?;
+    let mut entries_map: std::collections::HashMap<Uuid, Vec<EntriesDto>> = std::collections::HashMap::new();
+    for entry in entry_rows {
+        entries_map.entry(entry.tx_id).or_default().push(entry.into());
+    }
+    let mut result = Vec::with_capacity(tx_rows.len());
+    for t in tx_rows {
+        let entries = entries_map.remove(&t.id).unwrap_or_default();
+        result.push(TransactionsDto {
+            id: t.id,
+            occurred_at: t.occurred_at,
+            payee: t.payee,
+            memo: t.memo,
+            created_at: t.created_at,
+            entries,
+        });
+    }
+    Ok(result)
+}
 pub async fn create_transaction_handler(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -322,6 +394,11 @@ pub async fn create_transaction_with_entries_db(
     })
 }
 
+#[derive(Deserialize)]
+pub struct ListTxQuery {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
 
 
 #[derive(serde::Deserialize)]
@@ -405,8 +482,6 @@ pub struct TransactionsDto {
 //         }
 //     }
 // }
-
-
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct CategoriesRow {
     pub id: i64,              // BIGSERIAL -> i64
