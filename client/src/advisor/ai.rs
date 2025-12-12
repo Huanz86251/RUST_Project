@@ -1,14 +1,17 @@
 //base on offical Candle repository https://github.com/huggingface/candle/blob/main/candle-examples/examples/quantized-qwen2-instruct/main.rs, with own build
 use crate::stat::datatype::*;
+use crate::stat::sync::*;
 use crate::stat::{Ledger, timephase_fromnow};
 use anyhow::{Result, anyhow};
 use candle_core::quantized::gguf_file;
 use candle_core::{Device, Tensor};
 use candle_transformers::generation::{LogitsProcessor, Sampling};
 use candle_transformers::models::quantized_qwen2::ModelWeights as Qwen2;
-use chrono::{Datelike, Local};
+use chrono::{Datelike, Duration, Local, NaiveDate};
 use hf_hub::api::sync::Api;
 use hf_hub::{Repo, RepoType};
+use rust_decimal::Decimal;
+use rust_decimal::prelude::FromPrimitive;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
 use std::path::PathBuf;
@@ -101,42 +104,48 @@ pub const TOOL: &str = r#"
     },
     "required":["months"]
   }}
-  {"name":"add_simple_expense",
-   "description":"Upload (create) a simple transaction to the server with a single entry. Use this ONLY when the user explicitly asks to record/add/log an expense or income.",
-   "parameters":{
-     "type":"object",
-     "properties":{
-       "amount":{
-         "type":"number",
-         "description":"Amount in CAD. Use positive number. (For expense it will be stored as negative in entries.)"
-       },
-       "category":{
-         "type":"string",
-         "description":"Category name, e.g. Food. If not exists, create it."
-       },
-       "account":{
-         "type":"string",
-         "description":"Account name, e.g. Chequing. If not exists, create it."
-       },
-       "date":{
-         "type":"string",
-         "description":"Optional date YYYY-MM-DD. If omitted, use today."
-       },
-       "payee":{
-         "type":"string",
-         "description":"Optional payee/merchant."
-       },
-       "memo":{
-         "type":"string",
-         "description":"Optional memo/note."
-       },
-       "is_income":{
-         "type":"boolean",
-         "description":"Optional. true for income, false for expense (default false)."
-       }
-     },
-     "required":["amount"]
-   }}
+   {"name":"upload_transaction",
+    "description":"Upload (record) a new transaction to the cloud server, e.g. salary received, paid rent, bought food.",
+    "parameters":{
+      "type":"object",
+      "properties":{
+        "occurred_at":{
+          "type":"string",
+          "description":"Transaction date in YYYY-MM-DD. If omitted, you may use days_ago."
+        },
+        "days_ago":{
+          "type":"integer",
+          "description":"If the user says 'yesterday', use 1. If 'today', use 0.",
+          "minimum":0,
+          "maximum":365
+        },
+        "payee":{"type":"string"},
+        "memo":{"type":"string"},
+        "account":{
+          "type":"string",
+          "description":"Account name (free text), e.g. Chequing, Cash Wallet, Visa. If not exists, it will be created."
+        },
+        "account_type":{
+          "type":"string",
+          "description":"Optional. Only used if a new account must be created.",
+          "enum":["checking","cash","credit","other"]
+        },
+        "category":{
+          "type":"string",
+          "description":"Category name. If not found, create it on server automatically."
+        },
+        "direction":{
+          "type":"string",
+          "description":"income means +amount, expense means -amount.",
+          "enum":["income","expense"]
+        },
+        "amount":{
+          "type":"number",
+          "description":"Positive number. Sign will be decided by direction."
+        }
+      },
+      "required":["account","direction","amount"]
+    }}
 "#;
 
 fn _device() -> Device {
@@ -175,25 +184,22 @@ fn extract_fun(raw: &str) -> Option<Toolcall> {
     let end = "</tool_call>";
     let start_pos = match raw.find(start) {
         Some(pos) => pos + start.len(),
-        None => return None,
+        None => 0,
     };
-    let end_pos = match raw.find(end) {
-        Some(pos) => pos,
-        None => return None,
+    let end_pos = match raw[start_pos..].find(end) {
+        Some(pos) => start_pos + pos,
+        None => raw.len(),
     };
     let slice_raw = &raw[start_pos..end_pos];
-    let json_raw = slice_raw.trim();
+    let mut json_raw = slice_raw.trim();
+    let l = json_raw.find('{')?;
+
+    json_raw = &json_raw[l..];
     if json_raw.is_empty() {
         return None;
     }
-    let json: serde_json::Result<Toolcall> = serde_json::from_str(json_raw);
-    let toolcall = match json {
-        Ok(v) => v,
-        Err(_) => {
-            return None;
-        }
-    };
-    return Some(toolcall);
+    let mut de = serde_json::Deserializer::from_str(json_raw);
+    Toolcall::deserialize(&mut de).ok()
 }
 
 fn tool_month_summary(ledger: &Ledger, userid: UserId, args: &JsonValue) -> String {
@@ -331,6 +337,143 @@ fn tool_recent_top_account(ledger: &Ledger, userid: UserId, args: &JsonValue) ->
     }
     out
 }
+async fn tool_upload_transaction(
+    base_url: &str,
+    token: &str,
+    ledger: &mut Ledger,
+    args: &JsonValue,
+) -> String {
+    let res: anyhow::Result<String> = (async {
+        let mut amount = 0.0;
+        if let Some(v) = args.get("amount") {
+            amount = v.as_f64().unwrap_or(0.0).abs();
+        }
+        if amount <= 0.0 {
+            anyhow::bail!("bad amount");
+        }
+
+        let direction = match args.get("direction") {
+            Some(v) => v.as_str().unwrap_or("expense"),
+            None => "expense",
+        };
+        if direction != "income" {
+            amount = -amount;
+        }
+
+        let dec = match Decimal::from_f64(amount) {
+            Some(d) => d,
+            None => anyhow::bail!("amount to decimal failed"),
+        };
+
+        let mut occ = Local::now().date_naive();
+        if let Some(v) = args.get("occurred_at") {
+            if let Some(s) = v.as_str() {
+                if let Ok(d) = NaiveDate::parse_from_str(s.trim(), "%Y-%m-%d") {
+                    occ = d;
+                }
+            }
+        } else if let Some(v) = args.get("days_ago") {
+            let mut d = v.as_i64().unwrap_or(0);
+            if d < 0 {
+                d = 0;
+            }
+            occ = Local::now().date_naive() - Duration::days(d);
+        }
+
+        let mut acc_name = "Chequing";
+        if let Some(v) = args.get("account") {
+            if let Some(s) = v.as_str() {
+                let s = s.trim();
+                if !s.is_empty() {
+                    acc_name = s;
+                }
+            }
+        }
+        let mut acc_type = AccountType::Checking;
+        if let Some(v) = args.get("account_type") {
+            if let Some(s) = v.as_str() {
+                let s = s.trim();
+                if !s.is_empty() {
+                    acc_type = AccountType::from(s.to_string());
+                }
+            }
+        }
+
+        let currency = if ledger.account.is_empty() {
+            "CAD"
+        } else {
+            ledger.account[0].currency.0.as_str()
+        };
+        let mut acc_id: i64 = 0;
+        let mut found = false;
+        for a in ledger.account.iter() {
+            if a.name.eq_ignore_ascii_case(acc_name) {
+                acc_id = a.id;
+                found = true;
+                break;
+            }
+        }
+        if !found {
+            let created =
+                create_cloudaccount(base_url, token, acc_name, &acc_type, Some(currency), None)
+                    .await?;
+            acc_id = created.id;
+        }
+        let cat_name = match args.get("category") {
+            Some(v) => v.as_str().unwrap_or("").trim(),
+            None => "",
+        };
+
+        let cat_id = if cat_name.is_empty() {
+            None
+        } else {
+            match ledger
+                .category
+                .iter()
+                .find(|c| c.name.eq_ignore_ascii_case(cat_name))
+            {
+                Some(c) => Some(c.id),
+                None => {
+                    let created = create_cloudcate(base_url, token, cat_name, None).await?;
+                    Some(created.id)
+                }
+            }
+        };
+
+        let payee = match args.get("payee") {
+            Some(v) => v.as_str(),
+            None => None,
+        };
+        let memo = match args.get("memo") {
+            Some(v) => v.as_str(),
+            None => None,
+        };
+
+        let entry = Entryreq {
+            account_id: acc_id,
+            category_id: cat_id,
+            amount: dec,
+            note: match memo {
+                Some(s) => Some(s.to_string()),
+                None => None,
+            },
+        };
+        create_cloudtransaction(base_url, token, occ, payee, memo, vec![entry]).await?;
+        *ledger = download_ledger_from_server(base_url, token).await?;
+        Ok(format!(
+            "uploaded transaction: {} {} {:.2} to account {}",
+            occ,
+            direction,
+            amount.abs(),
+            acc_name
+        ))
+    })
+    .await;
+    match res {
+        Ok(s) => s,
+        Err(_) => "given parameter wrong, function give error.".to_string(),
+    }
+}
 fn tool_recent_trend(ledger: &Ledger, userid: UserId, args: &JsonValue) -> String {
     let mon = match args.get("months") {
         Some(v) => match v.as_i64() {
@@ -361,15 +504,25 @@ fn tool_recent_trend(ledger: &Ledger, userid: UserId, args: &JsonValue) -> Strin
     }
     s
 }
-fn run_toolcall(toolcall: &Toolcall, ledger: &Ledger, userid: UserId) -> String {
-    match toolcall.name.as_str() {
+async fn run_toolcall(
+    base_url: &str,
+    token: &str,
+    toolcall: &Toolcall,
+    ledger: &mut Ledger,
+    userid: UserId,
+) -> String {
+    let name = toolcall.name.as_str();
+    let body = match toolcall.name.as_str() {
         "month_summary" => tool_month_summary(ledger, userid, &toolcall.arguments),
         "recent_top_account" => tool_recent_top_account(ledger, userid, &toolcall.arguments),
         "recent_top_category" => tool_recent_top_category(ledger, userid, &toolcall.arguments),
         "recent_trend" => tool_recent_trend(ledger, userid, &toolcall.arguments),
-        //"add_simple_expense" => tool_add_simple_expense(ledger, userid, &toolcall.arguments),
+        "upload_transaction" => {
+            tool_upload_transaction(base_url, token, ledger, &toolcall.arguments).await
+        }
         _ => "unknown tool name".to_string(),
-    }
+    };
+    format!("called function: {name} , return: {body}")
 }
 #[derive(Debug, Clone, Copy)]
 pub enum Modeltype {
@@ -431,7 +584,7 @@ impl Modeltype {
         template.push_str("\n</tools>\n\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\n<tool_call>\n{\"name\": <function-name>, \"arguments\": <args-json-object>}\n</tool_call><|im_end|>\n",);
         template.push_str("<|im_start|>user\n");
         template.push_str(user);
-        template.push_str("<|im_end|>\n<|im_start|>assistant\n");
+        template.push_str("Output ONLY one tool call, no extra text.\n<|im_end|>\n<|im_start|>assistant\n<tool_call>\n");
         template
     }
     fn apply_tool_out_chat_template(&self, premessage: &str, functionresult: &str) -> String {
@@ -439,7 +592,13 @@ impl Modeltype {
         template.push_str(premessage);
         template.push_str("<|im_end|>\n<|im_start|>user\n<tool_response>\n");
         template.push_str(functionresult);
-        template.push_str("\n</tool_response>Please analyze these results and give 2–3 positive, practical suggestions for my finances.<|im_end|>\n<|im_start|>assistant\n");
+        template.push_str(
+            "\n</tool_response>\
+            Reply in around 3 short lines, friendly. Use ONLY fact from <tool_response>:\n\
+            first you need to restate the function result (keep numbers/dates exactly).\n\
+            then you need to make some calm suggestion/question. No new facts. You don't need to call any function now!\n\
+            <|im_end|>\n<|im_start|>assistant\n",
+        );
         template
     }
 }
@@ -650,10 +809,12 @@ Focus on categories and behaviours, not on exact amounts.\n",
         result.push(cad2);
         return Ok(result);
     }
-    pub fn answer_withtool(
+    pub async fn answer_withtool(
         &mut self,
         content: &str,
-        ledger: &Ledger,
+        base_url: &str,
+        token: &str,
+        ledger: &mut Ledger,
         userid: UserId,
         cfg: &Generationcfg,
     ) -> Result<String> {
@@ -666,8 +827,13 @@ Focus on categories and behaviours, not on exact amounts.\n",
             month = month,
             content = content
         );
+        let toolcfg = Generationcfg {
+            max_new_tok: 256,
+            temperature: 0.0,
+            top_p: 1.0,
+        };
         let prompt_first = self.name.apply_into_tool_chat_template(&time_con, TOOL);
-        let first_turn = match self.generation_core(&prompt_first, cfg) {
+        let first_turn = match self.generation_core(&prompt_first, &toolcfg) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
@@ -681,7 +847,7 @@ Focus on categories and behaviours, not on exact amounts.\n",
                 return Ok(backup);
             }
         };
-        let r = run_toolcall(&fc, ledger, userid);
+        let r = run_toolcall(base_url, token, &fc, ledger, userid).await;
         let second_prompt = self.name.apply_tool_out_chat_template(&prompt_first, &r);
         let final_a = match self.generation_core(&second_prompt, cfg) {
             Ok(v) => v,

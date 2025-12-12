@@ -82,19 +82,38 @@ async fn main() -> Result<()> {
     println!("--- Prompt ---\n{}\n", samples[0]);
     println!("--- Advice #1 ---\n{}\n", samples[1]);
     println!("--- Advice #2 ---\n{}\n", samples[2]);
-    let questions = [
-        "How much did I spend in 2025-12?",
-        "What category did I spend the most on in the last 3 months?",
-        "Show my spending trend for the last 3 months.",
-        "Which account did I spend the most from in the last 3 months?",
-    ];
+    println!("\n=== Before upload ===");
+    let before = model
+        .answer_withtool(
+            "How much did I spend in 2025-12?",
+            base_url,
+            &token,
+            &mut ledger,
+            uid,
+            &modelcfg,
+        )
+        .await?;
+    println!("{before}");
 
-    for q in questions {
-        println!("\n=== Agent QA ===");
-        println!("Q: {q}");
-        let a = model.answer_withtool(q, &ledger, uid, &modelcfg)?;
-        println!("A:\n{a}\n");
-    }
+    println!("\n=== Upload by AI ===");
+    let upload_q = "Please record an expense of 6.66 CAD today, payee Cafe, category Food, account Chequing, memo test.";
+    let upload_a = model
+        .answer_withtool(upload_q, base_url, &token, &mut ledger, uid, &modelcfg)
+        .await?;
+    println!("{upload_a}");
+
+    println!("\n=== After upload ===");
+    let after = model
+        .answer_withtool(
+            "How much did I spend in 2025-12?",
+            base_url,
+            &token,
+            &mut ledger,
+            uid,
+            &modelcfg,
+        )
+        .await?;
+    println!("{after}");
     tui::run_tui(ledger).map_err(|e| anyhow::anyhow!("{e}"))?;
     Ok(())
 }
