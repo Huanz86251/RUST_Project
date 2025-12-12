@@ -584,7 +584,7 @@ impl Modeltype {
         template.push_str("\n</tools>\n\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\n<tool_call>\n{\"name\": <function-name>, \"arguments\": <args-json-object>}\n</tool_call><|im_end|>\n",);
         template.push_str("<|im_start|>user\n");
         template.push_str(user);
-        template.push_str("Output ONLY one tool call, no extra text.\n<|im_end|>\n<|im_start|>assistant\n<tool_call>\n");
+        template.push_str("Output ONLY one tool call, no extra text.Tool arguments must match the schema exactly (use integers for year/month/months) \n<|im_end|>\n<|im_start|>assistant\n<tool_call>\n");
         template
     }
     fn apply_tool_out_chat_template(&self, premessage: &str, functionresult: &str) -> String {
@@ -821,10 +821,12 @@ Focus on categories and behaviours, not on exact amounts.\n",
         let now = Local::now();
         let year = now.year();
         let month = now.month();
+        let day = now.day();
         let time_con = format!(
-            "Today is {year:04}-{month:02}. {content}",
+            "Today is {year:04}-{month:02}-{day:02}. {content}",
             year = year,
             month = month,
+            day = day,
             content = content
         );
         let toolcfg = Generationcfg {
