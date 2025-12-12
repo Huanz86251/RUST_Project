@@ -301,6 +301,7 @@ pub async fn create_category_handler(
     Ok(Json(acc_row.into()))
 }
 
+
 #[derive(Debug, Deserialize)]
 pub struct CategoryQuery {
     pub limit: Option<i64>,
