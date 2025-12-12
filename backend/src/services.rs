@@ -3,7 +3,7 @@ use crate::AppState;
 use rust_decimal::Decimal;
 use axum::{
     Extension,
-    extract::{Request, Json,State,Query},
+    extract::{Request, Json,State,Query, Path},
     http::StatusCode,
 };
 use serde::{Deserialize, Serialize};
@@ -232,6 +232,56 @@ pub async fn list_accounts_db(
 
     Ok(rows)
 }
+pub async fn delete_account_handler(
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(account_id): Path<i64>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    delete_account_db(&state.pool, user.user_id, account_id)
+        .await
+        .map_err(|e| match &e {
+            sqlx::Error::RowNotFound => {
+                (StatusCode::NOT_FOUND, "account not found".to_string())
+            }
+            sqlx::Error::Database(db_err)
+                if db_err.constraint() == Some("entries_user_account_id_fkey") =>
+            {
+                // entries reference this account
+                (StatusCode::CONFLICT, "account has entries, cannot delete".to_string())
+            }
+            _ => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("db error: {e}"),
+            ),
+        })?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn delete_account_db(
+    pool: &PgPool,
+    user_id: Uuid,
+    account_id: i64,
+) -> Result<(), sqlx::Error> {
+    let result = sqlx::query!(
+        r#"
+        DELETE FROM accounts
+        WHERE id = $1 AND user_id = $2
+        "#,
+        account_id,
+        user_id,
+    )
+    .execute(pool)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(sqlx::Error::RowNotFound);
+    }
+
+    Ok(())
+}
+
+
 pub async fn create_category_handler(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -316,6 +366,46 @@ pub async fn list_categories_db(
     .await?;
 
     Ok(rows)
+}
+pub async fn delete_category_handler(
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(category_id): Path<i64>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    delete_category_db(&state.pool, user.user_id, category_id)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => {
+                (StatusCode::NOT_FOUND, "category not found".to_string())
+            }
+            _ => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("db error: {e}"),
+            ),
+        })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+pub async fn delete_category_db(
+    pool: &PgPool,
+    user_id: Uuid,
+    category_id: i64,
+) -> Result<(), sqlx::Error> {
+    let res = sqlx::query!(
+        r#"
+        DELETE FROM categories
+        WHERE id = $1 AND user_id = $2
+        "#,
+        category_id,
+        user_id,
+    )
+    .execute(pool)
+    .await?;
+
+    if res.rows_affected() == 0 {
+        return Err(sqlx::Error::RowNotFound);
+    }
+
+    Ok(())
 }
 pub async fn list_transactions_handler(
     State(state): State<AppState>,
@@ -458,6 +548,83 @@ pub async fn create_transaction_with_entries_db(
         created_at: tx_row.created_at,
         entries: entry_dtos,
     })
+}
+pub async fn delete_transaction_handler(
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(tx_id): Path<Uuid>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    delete_transaction_db(&state.pool, user.user_id, tx_id)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => (StatusCode::NOT_FOUND, "transaction not found".to_string()),
+            _ => (StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}")),
+        })?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+pub async fn delete_transaction_db(
+    pool: &PgPool,
+    user_id: Uuid,
+    tx_id: Uuid,
+) -> Result<(), sqlx::Error> {
+    let result = sqlx::query!(
+        r#"
+        DELETE FROM transactions
+        WHERE user_id = $1 AND id = $2
+        "#,
+        user_id,
+        tx_id,
+    )
+    .execute(pool)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(sqlx::Error::RowNotFound);
+    }
+
+    Ok(())
+}
+pub async fn delete_entry_handler(
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(entry_id): Path<i64>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    delete_entry_db(&state.pool, user.user_id, entry_id)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => {
+                (StatusCode::NOT_FOUND, "entry not found".to_string())
+            }
+            _ => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("db error: {e}"),
+            ),
+        })?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+pub async fn delete_entry_db(
+    pool: &PgPool,
+    user_id: Uuid,
+    entry_id: i64,
+) -> Result<(), sqlx::Error> {
+    let res = sqlx::query!(
+        r#"
+        DELETE FROM entries
+        WHERE id = $1 AND user_id = $2
+        "#,
+        entry_id,
+        user_id,
+    )
+    .execute(pool)
+    .await?;
+
+    if res.rows_affected() == 0 {
+        return Err(sqlx::Error::RowNotFound);
+    }
+
+    Ok(())
 }
 
 #[derive(Deserialize)]
