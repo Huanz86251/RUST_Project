@@ -76,7 +76,9 @@ CREATE TABLE entries (
   -- Enforce same-user references
   FOREIGN KEY (user_id, tx_id) REFERENCES transactions(user_id, id) ON DELETE CASCADE,
   FOREIGN KEY (user_id, account_id) REFERENCES accounts(user_id, id),
-  FOREIGN KEY (user_id, category_id) REFERENCES categories(user_id, id) ON DELETE SET NULL
+  FOREIGN KEY (category_id)
+    REFERENCES categories(id)
+    ON DELETE SET NULL
 );
 
 -- Common indexes
