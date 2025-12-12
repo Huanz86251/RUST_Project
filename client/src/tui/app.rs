@@ -1,6 +1,6 @@
-use chrono::{Datelike, Local};
 use crate::stat::Ledger;
-use crate::stat::datatype::{UserId, Entry};
+use crate::stat::datatype::{Entry, UserId};
+use chrono::{Datelike, Local};
 
 #[derive(Copy, Clone, Debug)]
 pub enum Screen {
@@ -115,25 +115,25 @@ impl App {
 
     pub fn next_screen(&mut self) {
         self.current_screen = match self.current_screen {
-            Screen::Dashboard     => Screen::Accounts,
-            Screen::Accounts      => Screen::CategoryStats,
+            Screen::Dashboard => Screen::Accounts,
+            Screen::Accounts => Screen::CategoryStats,
             Screen::CategoryStats => Screen::AccountStats,
-            Screen::AccountStats  => Screen::Trends,
-            Screen::Trends        => Screen::Reconcile,
-            Screen::Reconcile     => Screen::Help,
-            Screen::Help          => Screen::Dashboard,
+            Screen::AccountStats => Screen::Trends,
+            Screen::Trends => Screen::Reconcile,
+            Screen::Reconcile => Screen::Help,
+            Screen::Help => Screen::Dashboard,
         };
     }
 
     pub fn prev_screen(&mut self) {
         self.current_screen = match self.current_screen {
-            Screen::Dashboard     => Screen::Help,
-            Screen::Accounts      => Screen::Dashboard,
+            Screen::Dashboard => Screen::Help,
+            Screen::Accounts => Screen::Dashboard,
             Screen::CategoryStats => Screen::Accounts,
-            Screen::AccountStats  => Screen::CategoryStats,
-            Screen::Trends        => Screen::AccountStats,
-            Screen::Reconcile     => Screen::Trends,
-            Screen::Help          => Screen::Reconcile,
+            Screen::AccountStats => Screen::CategoryStats,
+            Screen::Trends => Screen::AccountStats,
+            Screen::Reconcile => Screen::Trends,
+            Screen::Help => Screen::Reconcile,
         };
     }
 

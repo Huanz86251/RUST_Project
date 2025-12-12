@@ -1,5 +1,5 @@
 [package]
-name = "newstart"
+name = "client"
 version = "0.1.0"
 edition = "2024"
 
@@ -17,7 +17,7 @@ hf-hub = "0.4.3"
 rand = "0.8"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-
+rust_decimal = { version = "1.38", features = ["serde"] }
 # tui
 crossterm = "0.28"
 ratatui = { version = "0.28", default-features = false, features = ["crossterm"] }
