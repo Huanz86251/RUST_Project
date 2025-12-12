@@ -184,7 +184,7 @@ pub async fn list_accounts_db(
                 (a.opening_balance + COALESCE(SUM(e.amount), 0)) AS balance
             FROM accounts a
             LEFT JOIN entries e ON e.account_id = a.id
-            LEFT JOIN transactions t ON t.id = e.transaction_id
+            LEFT JOIN transactions t ON t.id = e.tx_id
             WHERE a.user_id =
             "#,
         );
