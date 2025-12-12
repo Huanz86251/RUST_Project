@@ -101,6 +101,42 @@ pub const TOOL: &str = r#"
     },
     "required":["months"]
   }}
+  {"name":"add_simple_expense",
+   "description":"Upload (create) a simple transaction to the server with a single entry. Use this ONLY when the user explicitly asks to record/add/log an expense or income.",
+   "parameters":{
+     "type":"object",
+     "properties":{
+       "amount":{
+         "type":"number",
+         "description":"Amount in CAD. Use positive number. (For expense it will be stored as negative in entries.)"
+       },
+       "category":{
+         "type":"string",
+         "description":"Category name, e.g. Food. If not exists, create it."
+       },
+       "account":{
+         "type":"string",
+         "description":"Account name, e.g. Chequing. If not exists, create it."
+       },
+       "date":{
+         "type":"string",
+         "description":"Optional date YYYY-MM-DD. If omitted, use today."
+       },
+       "payee":{
+         "type":"string",
+         "description":"Optional payee/merchant."
+       },
+       "memo":{
+         "type":"string",
+         "description":"Optional memo/note."
+       },
+       "is_income":{
+         "type":"boolean",
+         "description":"Optional. true for income, false for expense (default false)."
+       }
+     },
+     "required":["amount"]
+   }}
 "#;
 
 fn _device() -> Device {

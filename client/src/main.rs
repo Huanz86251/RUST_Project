@@ -1,188 +1,100 @@
-pub mod advisor;
-pub mod stat;
-pub mod tui;
-
+mod advisor;
+mod stat;
+mod tui;
 use advisor::*;
+use anyhow::Result;
+use chrono::Utc;
+use rust_decimal::Decimal;
+use rust_decimal::prelude::FromPrimitive;
 use stat::*;
 
-fn print_trend<K: std::fmt::Debug>(title: &str, t: &Trend<K>) {
-    println!("\n== {} ==", title);
-    for i in 0..t.axis.len() {
-        println!(
-            "{:?} => income={:.2}, outcome={:.2}, summary={:.2}",
-            t.axis[i], t.income[i], t.outcome[i], t.summary[i]
-        );
-    }
-}
+#[tokio::main]
+async fn main() -> Result<()> {
+    let base_url = "http://127.0.0.1:8080";
+    let email = "demo@example.com";
+    let password = "demo_password_123";
 
-fn main() {
-    let ledger: Ledger = Ledger::build_demo_ledger();
+    let _ = register(base_url, email, password).await;
 
-    //  commented out to disable TUI for this example, comment all code below as well
-    // if let Err(e) = tui::run_tui(ledger) {
-    //     eprintln!("Error running TUI: {e}");
-    // }
+    let auth = login(base_url, email, password).await?;
+    let token = auth.token.clone();
+    let uid = auth.user_id;
 
-    println!("== Account Summary ==\n");
-    for s in ledger.all_account_summary() {
-        println!(
-            "[id={}] {:<10} | type: {:<8} | balance: {:>8.2} {}",
-            s.accountid,
-            s.name,
-            s.account_type.to_cloud(),
-            s.balance,
-            s.currency.0,
-        );
+    let mut ledger = download_ledger_from_server(base_url, &token).await?;
+
+    let has_chequing = ledger.account.iter().any(|a| a.name == "Chequing");
+    if !has_chequing {
+        create_cloudaccount(
+            base_url,
+            &token,
+            "Chequing",
+            &AccountType::Checking,
+            Some("CAD"),
+            Some(1000.0),
+        )
+        .await?;
     }
 
-    if let Some(user) = ledger.user.first() {
-        let uid = user.id;
-        let timephase = ((2025, 12), (2025, 12));
+    let has_food = ledger.category.iter().any(|c| c.name == "Food");
+    if !has_food {
+        create_cloudcate(base_url, &token, "Food", None).await?;
+    }
 
-        let total_spend = ledger.month_summary(uid, 2025, 12, None, None, Some(true), None);
-        println!(
-            "\n== 2025-12 total spend (all category, all account) = {:.2} ==",
-            total_spend
-        );
+    ledger = download_ledger_from_server(base_url, &token).await?;
 
-        let total_all = ledger.month_summary(uid, 2025, 12, None, None, None, Some(timephase));
-        println!(
-            "== 2025-12 total income+spend (summary, all accounts) = {:.2} ==\n",
-            total_all
-        );
+    if ledger.transaction.is_empty() {
+        let acc_id = ledger
+            .account
+            .iter()
+            .find(|a| a.name == "Chequing")
+            .unwrap()
+            .id;
+        let cat_id = ledger
+            .category
+            .iter()
+            .find(|c| c.name == "Food")
+            .unwrap()
+            .id;
 
-        let stats = ledger.monthstats(uid, timephase);
-        println!("== Monthstats (per month) ==");
-        for ((y, m), s) in &stats {
-            println!(
-                "{}-{:02}: income={:.2}, outcome={:.2}, summary={:.2}",
-                y, m, s.income, s.outcome, s.summary
-            );
-        }
-
-        let line_trend = ledger.data_linetrend(uid, timephase, None, None);
-        print_trend("Line trend (all accounts, all categories)", &line_trend);
-
-        let cat_trend = ledger.category_pietrend(uid, timephase, None);
-        print_trend("Category pietrend (raw)", &cat_trend);
-
-        let cat_trend_norm = cat_trend.normalize();
-        print_trend(
-            "Category pietrend (normalized to percentage)",
-            &cat_trend_norm,
-        );
-
-        let acc_trend = ledger.account_pietrend(uid, timephase, None);
-        print_trend("Account pietrend (raw)", &acc_trend);
-
-        let top_cat = ledger.top_category(uid, timephase, None, 5, Some(true));
-        print_trend("Top 5 categories by outcome", &top_cat);
-
-        let top_acc = ledger.top_account(uid, timephase, None, 5, Some(true));
-        print_trend("Top accounts by outcome", &top_acc);
-
-        let internal_for_phase = ledger.month_summary(
-            uid,
-            timephase.0.0,
-            timephase.0.1,
-            None,
-            None,
-            None,
-            Some(timephase),
-        );
-        let external_balance_ok = internal_for_phase;
-
-        let rec_ok = ledger.reconcile(uid, None, external_balance_ok, timephase, 3);
-
-        println!("\n== Reconcile (OK case, all accounts) ==");
-        println!("good           = {}", rec_ok.good);
-        println!("internal_balance = {:.2}", rec_ok.internal_balance);
-        println!("external_balance = {:.2}", rec_ok.external_balance);
-        println!("difference       = {:.2}", rec_ok.difference);
-        println!("suspicious entries = {}", rec_ok.suspicous_entry.len());
-
-        let external_balance_bad = internal_for_phase + 100.0;
-        let rec_bad = ledger.reconcile(uid, None, external_balance_bad, timephase, 3);
-
-        println!("\n== Reconcile (BAD case, all accounts) ==");
-        println!("good           = {}", rec_bad.good);
-        println!("internal_balance = {:.2}", rec_bad.internal_balance);
-        println!("external_balance = {:.2}", rec_bad.external_balance);
-        println!("difference       = {:.2}", rec_bad.difference);
-        println!(
-            "Top suspicious entries (len = {}):",
-            rec_bad.suspicous_entry.len()
-        );
-        for e in &rec_bad.suspicous_entry {
-            println!(
-                "- entry_id={} account={} amount={:.2} desc={:?}",
-                e.id, e.accountid, e.amount, e.desc
-            );
-        }
-
-        let acc_only = Some(1);
-
-        let internal_acc = ledger.month_summary(
-            uid,
-            timephase.0.0,
-            timephase.0.1,
-            acc_only,
-            None,
-            None,
-            Some(timephase),
-        );
-        let external_acc_bad = internal_acc - 50.0;
-
-        let rec_acc = ledger.reconcile(uid, acc_only, external_acc_bad, timephase, 3);
-
-        println!("\n== Reconcile (BAD case, Chequing only) ==");
-        println!("good           = {}", rec_acc.good);
-        println!("internal_balance = {:.2}", rec_acc.internal_balance);
-        println!("external_balance = {:.2}", rec_acc.external_balance);
-        println!("difference       = {:.2}", rec_acc.difference);
-        println!(
-            "Top suspicious entries for Chequing (len = {}):",
-            rec_acc.suspicous_entry.len()
-        );
-        for e in &rec_acc.suspicous_entry {
-            println!(
-                "- entry_id={} account={} amount={:.2} desc={:?}",
-                e.id, e.accountid, e.amount, e.desc
-            );
-        }
-        let mut model = match Model::new_with(Modeltype::Qwen25_3B) {
-            Ok(m) => m,
-            Err(e) => {
-                eprintln!("Failed to load AI model: {e}");
-                return;
-            }
+        let entry = Entryreq {
+            account_id: acc_id,
+            category_id: Some(cat_id),
+            amount: Decimal::from_f64(-12.34).unwrap(),
+            note: Some("seed lunch".to_string()),
         };
-        let modelcfg = Generationcfg::default();
-        let samples = match model.generate_advicepair(&ledger, uid, 3, 3, &modelcfg) {
-            Ok(v) => v,
-            Err(e) => {
-                eprintln!("Failed to generate AI advice: {e}");
-                return;
-            }
-        };
-        let prompt = &samples[0];
-        let advice1 = &samples[1];
-        let advice2 = &samples[2];
 
-        println!("--- Prompt---\n{}\n", prompt);
-        println!("--- Advice #1 ---\n{}\n", advice1);
-        println!("--- Advice #2 ---\n{}\n", advice2);
-        let question = "What category I spend most in last 3 months, Can you give me some advise?";
+        create_cloudtransaction(
+            base_url,
+            &token,
+            Utc::now().date_naive(),
+            Some("Cafe"),
+            Some("seed transaction"),
+            vec![entry],
+        )
+        .await?;
 
-        match model.answer_withtool(question, &ledger, uid, &modelcfg) {
-            Ok(answer) => {
-                println!("--- Tool-based QA ---");
-                println!("Q: {}", question);
-                println!("A:\n{}\n", answer);
-            }
-            Err(e) => {
-                eprintln!("Failed to answer with tool: {e}");
-            }
-        }
+        ledger = download_ledger_from_server(base_url, &token).await?;
     }
+
+    let mut model = Model::new_with(Modeltype::Qwen25_3B)?;
+    let modelcfg = Generationcfg::default();
+    let samples = model.generate_advicepair(&ledger, uid, 3, 3, &modelcfg)?;
+    println!("--- Prompt ---\n{}\n", samples[0]);
+    println!("--- Advice #1 ---\n{}\n", samples[1]);
+    println!("--- Advice #2 ---\n{}\n", samples[2]);
+    let questions = [
+        "How much did I spend in 2025-12?",
+        "What category did I spend the most on in the last 3 months?",
+        "Show my spending trend for the last 3 months.",
+        "Which account did I spend the most from in the last 3 months?",
+    ];
+
+    for q in questions {
+        println!("\n=== Agent QA ===");
+        println!("Q: {q}");
+        let a = model.answer_withtool(q, &ledger, uid, &modelcfg)?;
+        println!("A:\n{a}\n");
+    }
+    tui::run_tui(ledger).map_err(|e| anyhow::anyhow!("{e}"))?;
+    Ok(())
 }
