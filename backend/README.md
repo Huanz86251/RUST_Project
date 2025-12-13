@@ -1,5 +1,11 @@
-# Test cloud deployment
+# User guide for backend server without client (Only Curl)
+## For developer who want to try server with local database:
+cargo run
+BASE=http://localhost:8080
+
+## For users  or developer that want to try Database stored in a HTTPS back-end server:
 BASE=https://finance-backend.bravestone-51d4c984.canadacentral.azurecontainerapps.io
+### And you don't need to cargo run.
 
 ## 1. Register
 curl -i -X POST "$BASE/auth/register" \
