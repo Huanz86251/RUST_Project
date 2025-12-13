@@ -1,5 +1,5 @@
 # User guide for backend server without client (Only Curl)
-## For developer who want to try server with local database:
+## For developer who want to try run their server with local database:
 cargo run
 BASE=http://localhost:8080
 
