@@ -1,7 +1,7 @@
 # Test cloud deployment
 BASE=https://finance-backend.bravestone-51d4c984.canadacentral.azurecontainerapps.io
 
-# 1. Register
+## 1. Register
 curl -i -X POST "$BASE/auth/register" \
   -H "Content-Type: application/json" \
   -d '{
@@ -9,15 +9,15 @@ curl -i -X POST "$BASE/auth/register" \
     "password": "TestPass123!"
   }'
 
-# 2. Login to get JWT – POST /auth/login
-# 2.1 Quickly inspect the response
+## 2. Login to get JWT – POST /auth/login
+## 2.1 Quickly inspect the response
 curl -i -X POST "$BASE/auth/login" \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test1@example.com",
     "password": "TestPass123!"
   }'
-# 2.2 Use jq to extract the token
+## 2.2 Use jq to extract the token
 TOKEN=$(curl -sS -X POST "$BASE/auth/login" \
   -H "Content-Type: application/json" \
   -d '{
@@ -27,17 +27,17 @@ TOKEN=$(curl -sS -X POST "$BASE/auth/login" \
 
 echo "$TOKEN"
 
-# 3. Test root route – GET /
+## 3. Test root route – GET /
 curl -i "$BASE/" \
   -H "Authorization: Bearer $TOKEN"
 
 
-# Expected something like:
+### Expected something like:
 
 Hello, user_id=xxxx-...
 
-# 4. Accounts – /accounts
-# 4.1 Create an account – POST /accounts
+## 4. Accounts – /accounts
+## 4.1 Create an account – POST /accounts
 curl -i -X POST "$BASE/accounts" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
@@ -48,22 +48,22 @@ curl -i -X POST "$BASE/accounts" \
     "opening_balance": 1000.00
   }'
 
-# 4.2 List accounts (simple) – GET /accounts
+## 4.2 List accounts (simple) – GET /accounts
 curl -i "$BASE/accounts" \
   -H "Authorization: Bearer $TOKEN"
 
-# 4.3 With balance & filters/sorting
+## 4.3 With balance & filters/sorting
 curl -i "$BASE/accounts?include_balance=true&limit=50&offset=0&sort=created_at&order=desc" \
   -H "Authorization: Bearer $TOKEN"
 
 
-# You can also filter by checking accounts and CAD, for example:
+### You can also filter by checking accounts and CAD, for example:
 
 curl -i "$BASE/accounts?type=checking&currency=CAD&include_balance=true" \
   -H "Authorization: Bearer $TOKEN"
 
-# 5. Categories – /categories
-# 5.1 Create a top-level category – POST /categories
+## 5. Categories – /categories
+## 5.1 Create a top-level category – POST /categories
 curl -i -X POST "$BASE/categories" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
@@ -72,7 +72,7 @@ curl -i -X POST "$BASE/categories" \
     "parent_id": null
   }'
 
-# 5.2 Create a subcategory (assume Food has id = 1)
+## 5.2 Create a subcategory (assume Food has id = 1)
 curl -i -X POST "$BASE/categories" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
@@ -81,13 +81,13 @@ curl -i -X POST "$BASE/categories" \
     "parent_id": 1
   }'
 
-# 5.3 List all categories – GET /categories
+## 5.3 List all categories – GET /categories
 curl -i "$BASE/categories" \
   -H "Authorization: Bearer $TOKEN"
 
-# 6. Transactions & entries – /transactions
+## 6. Transactions & entries – /transactions
 
-# Your request body structure (CreateTransactionsReq in backend) is:
+### Your request body structure (CreateTransactionsReq in backend) is:
 
 {
   "payee": "optional",
@@ -103,9 +103,9 @@ curl -i "$BASE/categories" \
   ]
 }
 
-# 6.1 Create a transaction (expense) – POST /transactions
+## 6.1 Create a transaction (expense) – POST /transactions
 
-# Example: on account 1, category 2, spend 20.5:
+### Example: on account 1, category 2, spend 20.5:
 
 curl -i -X POST "$BASE/transactions" \
   -H "Content-Type: application/json" \
@@ -125,7 +125,7 @@ curl -i -X POST "$BASE/transactions" \
   }'
 
 
-# You can also create an “income” transaction:
+### You can also create an “income” transaction:
 
 curl -i -X POST "$BASE/transactions" \
   -H "Content-Type: application/json" \
@@ -144,31 +144,31 @@ curl -i -X POST "$BASE/transactions" \
     ]
   }'
 
-# 6.2 List transactions – GET /transactions
+## 6.2 List transactions – GET /transactions
 
-# Simple list (default limit/offset):
+### Simple list (default limit/offset):
 
 curl -i "$BASE/transactions" \
   -H "Authorization: Bearer $TOKEN"
 
 
-# With pagination parameters:
+### With pagination parameters:
 
 curl -i "$BASE/transactions?limit=50&offset=0" \
   -H "Authorization: Bearer $TOKEN"
 
 
-# Each returned TransactionsDto includes entries: Vec<EntriesDto>.
+### Each returned TransactionsDto includes entries: Vec<EntriesDto>.
 
-# 7. Ledger summary snapshot – /ledger or /ledger/snapshot
+## 7. Ledger summary snapshot – /ledger or /ledger/snapshot
 
-# If you mount the handler on /ledger, it’s roughly like this:
+## If you mount the handler on /ledger, it’s roughly like this:
 
 curl -i "$BASE/ledger" \
   -H "Authorization: Bearer $TOKEN"
 
 
-# If it’s /ledger/snapshot, then:
+## If it’s /ledger/snapshot, then:
 
 curl -i "$BASE/ledger/snapshot" \
   -H "Authorization: Bearer $TOKEN"
