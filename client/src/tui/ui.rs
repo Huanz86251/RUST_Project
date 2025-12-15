@@ -1,4 +1,3 @@
-// src/tui/ui.rs
 use rust_decimal::prelude::FromPrimitive;
 
 use std::error::Error;
@@ -20,13 +19,12 @@ use ratatui::{
 };
 
 use crate::stat::Ledger;
+use crate::advisor::{Model, Modeltype, Generationcfg};
 use super::app::{App, Screen, InputMode};
-use anyhow; // new implemented
+use anyhow;
 
-/// Entry point for the TUI. Called from main.rs.
 pub fn run_tui(ledger: Ledger, base_url: String, token: String) -> anyhow::Result<()> {
     let mut app = App::new(ledger, base_url, token);
-    // new implemented 
     let rt = tokio::runtime::Runtime::new()?;
 
     enable_raw_mode()?;
@@ -42,13 +40,12 @@ pub fn run_tui(ledger: Ledger, base_url: String, token: String) -> anyhow::Resul
             break;
         }
 
-        if app.needs_refresh { // new implemented
+        if app.needs_refresh { 
             app.needs_refresh = false;
             match rt.block_on(
                 crate::stat::sync::download_ledger_from_server(&app.base_url, &app.token)
             ) {
                 Ok(new_ledger) => {
-                    // new implemente
                     if app.is_creating_new_category && !app.new_category_name.trim().is_empty() {
                         if let Some(new_cat) = new_ledger.category.iter()
                             .find(|c| c.name == app.new_category_name.trim())
@@ -83,8 +80,7 @@ pub fn run_tui(ledger: Ledger, base_url: String, token: String) -> anyhow::Resul
     Ok(())
 }
 
-/// Dispatch keyboard events depending on input mode.
-fn handle_key_event(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime) { // new implemented
+fn handle_key_event(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime) {
     if key.kind != KeyEventKind::Press {
         return;
     }
@@ -94,12 +90,12 @@ fn handle_key_event(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime) 
         InputMode::EditingReconcile => handle_key_reconcile_input(app, key),
         InputMode::CreatingTransaction => handle_key_create_tx(app, key, rt),
         InputMode::CreatingCategory => handle_key_create_category(app, key, rt),
-        InputMode::CreatingAccount => handle_key_create_account(app, key, rt), // new implemented
+        InputMode::CreatingAccount => handle_key_create_account(app, key, rt),
+        InputMode::AdvisorChat => handle_key_advisor_chat(app, key, rt),
     }
 }
 
-/// Key handling in normal mode.
-fn handle_key_normal(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime) { // new implemented
+fn handle_key_normal(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime) {
     use KeyCode::*;
 
     match key.code {
@@ -118,7 +114,6 @@ fn handle_key_normal(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime)
         Char('[') => app.shift_range(-1),
         Char(']') => app.shift_range(1),
 
-        // Move selection in list-based screens
         Up => match app.current_screen {
             Screen::Accounts => {
                 if app.selected_account_idx > 0 {
@@ -140,6 +135,15 @@ fn handle_key_normal(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime)
                     app.selected_account_stats_idx -= 1;
                 }
             }
+            Screen::Advisor => {
+                if app.advisor_selecting_model {
+                    if app.advisor_model_choice_idx > 0 {
+                        app.advisor_model_choice_idx -= 1;
+                    }
+                } else {
+                    app.advisor_scroll = app.advisor_scroll.saturating_sub(1);
+                }
+            }
             _ => {}
         },
 
@@ -156,22 +160,29 @@ fn handle_key_normal(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime)
             Screen::AccountStats => {
                 app.selected_account_stats_idx += 1;
             }
+            Screen::Advisor => {
+                if app.advisor_selecting_model {
+                    let max_idx = 3; // 0.5B, 1.5B, 3B, 7B
+                    if app.advisor_model_choice_idx < max_idx {
+                        app.advisor_model_choice_idx += 1;
+                    }
+                } else {
+                    app.advisor_scroll = app.advisor_scroll.saturating_add(1);
+                }
+            }
             _ => {}
         },
 
-        // Enter reconcile input mode (only Reconcile screen)
         Char('e') => {
             if let Screen::Reconcile = app.current_screen {
                 app.input_mode = InputMode::EditingReconcile;
             }
         }
 
-        // Help screen
         Char('?') => {
             app.current_screen = Screen::Help;
         }
 
-        // new implemented
         Char('r') => {
             app.needs_refresh = true;
         }
@@ -184,8 +195,8 @@ fn handle_key_normal(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime)
                 app.new_tx_memo = String::new();
                 app.new_tx_amount = String::new();
                 app.new_tx_field_idx = 0;
-                app.new_tx_entries = Vec::new(); // new implemented
-                app.new_tx_selected_entry_idx = 0; // new implemented
+                app.new_tx_entries = Vec::new();
+                app.new_tx_selected_entry_idx = 0;
             }
         }
 
@@ -233,11 +244,74 @@ fn handle_key_normal(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime)
             }
         }
 
+        //  advisor: select model / generate advice
+        Char('m') => {
+            if let Screen::Advisor = app.current_screen {
+                if !app.advisor_selecting_model {
+                    // enter model selection
+                    app.advisor_model_choice_idx = advisor_index_from_model(app.advisor_model_type);
+                    app.advisor_selecting_model = true;
+                } else {
+                    // confirm and exit
+                    app.advisor_model_type = advisor_model_from_index(app.advisor_model_choice_idx);
+                    app.advisor_selecting_model = false;
+                }
+            }
+        }
+
+        Char('g') => {
+            if let Screen::Advisor = app.current_screen {
+                if let Err(e) = advisor_generate_report(app) {
+                    app.error_message = Some(format!("Advisor failed: {}", e));
+                } else {
+                    app.success_message = Some("Advisor: advice generated".to_string());
+                    app.advisor_scroll = 0;
+                }
+            }
+        }
+
+        // advisor chat
+        Char('i') => {
+            if let Screen::Advisor = app.current_screen {
+                app.input_mode = InputMode::AdvisorChat;
+                app.advisor_chat_input.clear();
+                app.error_message = None;
+            }
+        }
+
+        KeyCode::PageUp => {
+            if let Screen::Advisor = app.current_screen {
+                app.advisor_chat_scroll = app.advisor_chat_scroll.saturating_sub(3);
+            }
+        }
+        KeyCode::PageDown => {
+            if let Screen::Advisor = app.current_screen {
+                app.advisor_chat_scroll = app.advisor_chat_scroll.saturating_add(3);
+            }
+        }
+
+        KeyCode::Enter => {
+            if let Screen::Advisor = app.current_screen {
+                if app.advisor_selecting_model {
+                    app.advisor_model_type = advisor_model_from_index(app.advisor_model_choice_idx);
+                    app.advisor_selecting_model = false;
+                }
+            }
+        }
+        KeyCode::Esc => {
+            if let Screen::Advisor = app.current_screen {
+                if app.advisor_selecting_model {
+                    // cancel selection, restore index from current model
+                    app.advisor_model_choice_idx = advisor_index_from_model(app.advisor_model_type);
+                    app.advisor_selecting_model = false;
+                }
+            }
+        }
+
         _ => {}
     }
 }
 
-// new implemented
 fn handle_key_create_tx(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime) {
     use KeyCode::*;
 
@@ -250,9 +324,9 @@ fn handle_key_create_tx(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runti
             app.new_tx_field_idx = (app.new_tx_field_idx + 1) % 7;
         }
         BackTab => {
-            app.new_tx_field_idx = if app.new_tx_field_idx == 0 { 6 } else { app.new_tx_field_idx - 1 }; // new implemented
+            app.new_tx_field_idx = if app.new_tx_field_idx == 0 { 6 } else { app.new_tx_field_idx - 1 };
         }
-        Char('a') => { // new implemented: add entry
+        Char('a') => {
             if app.new_tx_amount.trim().is_empty() {
                 app.error_message = Some("Amount is required".to_string());
             } else {
@@ -270,7 +344,7 @@ fn handle_key_create_tx(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runti
                 app.error_message = None;
             }
         }
-        Char('x') => { // new implemented: delete selected entry
+        Char('x') => {
             if !app.new_tx_entries.is_empty() && app.new_tx_selected_entry_idx < app.new_tx_entries.len() {
                 app.new_tx_entries.remove(app.new_tx_selected_entry_idx);
                 if app.new_tx_selected_entry_idx >= app.new_tx_entries.len() && !app.new_tx_entries.is_empty() {
@@ -279,7 +353,6 @@ fn handle_key_create_tx(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runti
             }
         }
         Enter => {
-            // new implemented - 验证必填字段
             if app.new_tx_date.trim().is_empty() {
                 app.error_message = Some("Date is required".to_string());
             } else if app.new_tx_entries.is_empty() && app.new_tx_amount.trim().is_empty() {
@@ -316,7 +389,6 @@ fn handle_key_create_tx(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runti
                 }
                 5 => {
                     if c == 'n' {
-                        // 进入创建新分类模式
                         app.is_creating_new_category = true;
                         app.input_mode = InputMode::CreatingCategory;
                         app.new_category_name = String::new();
@@ -327,7 +399,7 @@ fn handle_key_create_tx(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runti
                         app.new_tx_category_idx = (app.new_tx_category_idx + 1).min(max_idx);
                     }
                 }
-                6 => { // new implemented: navigate entries list
+                6 => {
                     if c == 'j' && app.new_tx_selected_entry_idx > 0 {
                         app.new_tx_selected_entry_idx -= 1;
                     } else if c == 'k' {
@@ -354,7 +426,7 @@ fn submit_new_transaction(app: &mut App, rt: &tokio::runtime::Runtime) -> anyhow
     
     let mut entries = Vec::new();
     
-    // new implemented: add entries from list
+    //add entries from list
     for (account_idx, category_idx, amount_str) in &app.new_tx_entries {
         let amount: f64 = amount_str.trim().parse()
             .map_err(|_| anyhow::anyhow!("Invalid amount in entry: {}", amount_str))?;
@@ -376,7 +448,7 @@ fn submit_new_transaction(app: &mut App, rt: &tokio::runtime::Runtime) -> anyhow
         });
     }
     
-    // new implemented: add current entry if amount is filled
+    // add current entry if amount is filled
     if !app.new_tx_amount.trim().is_empty() {
         let amount: f64 = app.new_tx_amount.trim().parse()
             .map_err(|_| anyhow::anyhow!("Invalid amount (must be a number)"))?;
@@ -416,7 +488,6 @@ fn submit_new_transaction(app: &mut App, rt: &tokio::runtime::Runtime) -> anyhow
     Ok(())
 }
 
-/// editing the external balance in Reconcile screen.
 fn handle_key_reconcile_input(app: &mut App, key: KeyEvent) {
     use KeyCode::*;
 
@@ -442,7 +513,48 @@ fn handle_key_reconcile_input(app: &mut App, key: KeyEvent) {
     }
 }
 
-/// Top-level UI layout: header, main content, footer.
+fn handle_key_advisor_chat(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime) {
+    use KeyCode::*;
+
+    match key.code {
+        Esc => {
+            app.input_mode = InputMode::Normal;
+            app.error_message = None;
+        }
+        Enter => {
+            let question = app.advisor_chat_input.trim().to_string();
+            if question.is_empty() {
+                app.input_mode = InputMode::Normal;
+                return;
+            }
+            // push user message
+            app.advisor_chat_history
+                .push(format!("You: {}", question));
+            app.advisor_chat_input.clear();
+            app.advisor_chat_scroll = 0; // new implemented: scroll to bottom
+
+            match advisor_answer_chat(app, rt, &question) {
+                Ok(answer) => {
+                    app.advisor_chat_history
+                        .push(format!("AI: {}", answer));
+                    app.input_mode = InputMode::Normal;
+                }
+                Err(e) => {
+                    app.error_message = Some(format!("Advisor chat failed: {}", e));
+                    app.input_mode = InputMode::Normal;
+                }
+            }
+        }
+        Backspace => {
+            app.advisor_chat_input.pop();
+        }
+        Char(c) => {
+            app.advisor_chat_input.push(c);
+        }
+        _ => {}
+    }
+}
+
 fn ui(f: &mut Frame<'_>, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -528,6 +640,9 @@ fn ui(f: &mut Frame<'_>, app: &App) {
             InputMode::CreatingAccount => {
                 "Creating account: Tab to switch fields, j/k to change type, Enter to submit, Esc to cancel".to_string()
             }
+            InputMode::AdvisorChat => {
+                "Advisor chat: Type question, Enter to send, Esc to cancel".to_string()
+            }
         }
     };
     let footer = Paragraph::new(footer_text)
@@ -535,7 +650,6 @@ fn ui(f: &mut Frame<'_>, app: &App) {
     f.render_widget(footer, chunks[2]);
 }
 
-// Dashboard screen
 fn draw_dashboard(f: &mut Frame<'_>, area: Rect, app: &App) {
     let (year, month) = app.selected_month;
     let user_id = app.user_id;
@@ -583,7 +697,6 @@ fn draw_dashboard(f: &mut Frame<'_>, area: Rect, app: &App) {
     f.render_widget(p, area);
 }
 
-// Accounts screen, lists all accounts with current balances.
 fn draw_accounts(f: &mut Frame<'_>, area: Rect, app: &App) {
     let accounts = app.ledger.all_account_summary();
 
@@ -636,13 +749,12 @@ fn draw_accounts(f: &mut Frame<'_>, area: Rect, app: &App) {
     f.render_widget(table, area);
 }
 
-// CategoryStats screen, shows top categories by outcome
 fn draw_category_stats(f: &mut Frame<'_>, area: Rect, app: &App) {
 
     let timephase = (app.start_month, app.end_month);
     let trend = app
         .ledger
-        .top_category(app.user_id, timephase, None, 10, Some(true)); // rank by outcome
+        .top_category(app.user_id, timephase, None, 10, Some(true));
 
     let norm = trend.normalize();
     // (name, income, outcome, net, percentage_of_spend)
@@ -704,7 +816,6 @@ fn draw_category_stats(f: &mut Frame<'_>, area: Rect, app: &App) {
     f.render_widget(table, area);
 }
 
-// new implemented
 fn draw_transactions(f: &mut Frame<'_>, area: Rect, app: &App) {
     let transactions = &app.ledger.transaction;
     
@@ -768,13 +879,12 @@ fn draw_transactions(f: &mut Frame<'_>, area: Rect, app: &App) {
     f.render_widget(table, area);
 }
 
-// AccountStats screen, shows top accounts by outcome.
 fn draw_account_stats(f: &mut Frame<'_>, area: Rect, app: &App) {
 
     let timephase = (app.start_month, app.end_month);
     let trend = app
         .ledger
-        .top_account(app.user_id, timephase, None, 10, Some(true)); // rank by outcome
+        .top_account(app.user_id, timephase, None, 10, Some(true));
 
     let norm = trend.normalize();
 
@@ -836,7 +946,6 @@ fn draw_account_stats(f: &mut Frame<'_>, area: Rect, app: &App) {
     f.render_widget(table, area);
 }
 
-// Trends screen, shows monthly income / outcome / net
 fn draw_trends(f: &mut Frame<'_>, area: Rect, app: &App) {
     let timephase = (app.start_month, app.end_month);
     let trend = app
@@ -884,9 +993,6 @@ fn draw_trends(f: &mut Frame<'_>, area: Rect, app: &App) {
     f.render_widget(table, area);
 }
 
-// Reconcile screen, allows entering an external balance and shows:
-// internal vs external balance difference
-// top suspicious entries explaining the mismatch.
 fn draw_reconcile(f: &mut Frame<'_>, area: Rect, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -896,7 +1002,6 @@ fn draw_reconcile(f: &mut Frame<'_>, area: Rect, app: &App) {
         ])
         .split(area);
 
-    // Upper panel: input + reconcile result
     let mut text = String::new();
     let (sy, sm) = app.start_month;
     let (ey, em) = app.end_month;
@@ -927,7 +1032,6 @@ fn draw_reconcile(f: &mut Frame<'_>, area: Rect, app: &App) {
     let p = Paragraph::new(text).block(block);
     f.render_widget(p, chunks[0]);
 
-    // Lower panel: suspicious entries table
     if let Some(ref view) = app.reconcile_result {
         let rows = view.entries.iter().map(|e| {
             let cells = vec![
@@ -965,7 +1069,6 @@ fn draw_reconcile(f: &mut Frame<'_>, area: Rect, app: &App) {
     }
 }
 
-//  Help screen
 fn draw_help(f: &mut Frame<'_>, area: Rect, _app: &App) {
     let text = "\
 Screens:
@@ -993,13 +1096,188 @@ Key bindings:
     f.render_widget(p, area);
 }
 
-fn draw_advisor(f: &mut Frame<'_>, area: Rect, _app: &App) {
-    let text = "AI Advisor - Press 'g' to generate advice";
-    let block = Block::default()
-        .title("AI Financial Advisor")
+fn advisor_model_name(model: Modeltype) -> &'static str {
+    match model {
+        Modeltype::Qwen25_0_5B => "Qwen2.5-0.5B-Instruct",
+        Modeltype::Qwen25_1_5B => "Qwen2.5-1.5B-Instruct",
+        Modeltype::Qwen25_3B => "Qwen2.5-3B-Instruct",
+        Modeltype::Qwen25_7B => "Qwen2.5-7B-Instruct",
+    }
+}
+
+fn advisor_model_from_index(idx: usize) -> Modeltype {
+    match idx {
+        0 => Modeltype::Qwen25_0_5B,
+        1 => Modeltype::Qwen25_1_5B,
+        2 => Modeltype::Qwen25_3B,
+        3 => Modeltype::Qwen25_7B,
+        _ => Modeltype::Qwen25_1_5B,
+    }
+}
+
+fn advisor_index_from_model(model: Modeltype) -> usize {
+    match model {
+        Modeltype::Qwen25_0_5B => 0,
+        Modeltype::Qwen25_1_5B => 1,
+        Modeltype::Qwen25_3B => 2,
+        Modeltype::Qwen25_7B => 3,
+    }
+}
+
+fn advisor_generate_report(app: &mut App) -> Result<(), Box<dyn Error>> {
+    let model_type = advisor_model_from_index(app.advisor_model_choice_idx);
+    app.advisor_model_type = model_type;
+
+    let mut model = Model::new_with(model_type)?;
+    let cfg = Generationcfg::default();
+
+    // use last 3 months and top 3 categories
+    let samples = model.generate_advicepair(&app.ledger, app.user_id, 3, 3, &cfg)?;
+
+    app.advisor_prompt = samples.get(0).cloned().unwrap_or_default();
+    app.advisor_advice1 = samples.get(1).cloned().unwrap_or_default();
+    app.advisor_advice2 = samples.get(2).cloned().unwrap_or_default();
+
+    Ok(())
+}
+
+fn advisor_answer_chat(
+    app: &mut App,
+    rt: &tokio::runtime::Runtime,
+    question: &str,
+) -> Result<String, Box<dyn Error>> {
+    let model_type = app.advisor_model_type;
+    let mut model = Model::new_with(model_type)?;
+    let cfg = Generationcfg::default();
+
+    let base_url = app.base_url.clone();
+    let token = app.token.clone();
+    let userid = app.user_id;
+
+    let answer = rt.block_on(model.answer_withtool(
+        question,
+        &base_url,
+        &token,
+        &mut app.ledger,
+        userid,
+        &cfg,
+    ))?;
+
+    Ok(answer)
+}
+
+fn draw_advisor(f: &mut Frame<'_>, area: Rect, app: &App) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Min(3),
+            Constraint::Min(3),
+        ])
+        .split(area);
+
+    // top: current model + instructions
+    let current_model = advisor_model_name(app.advisor_model_type);
+    let mut header_text = format!("Model: {}  |  g: generate advice  |  m: change model", current_model);
+    if app.advisor_selecting_model {
+        header_text.push_str("  (Selecting model: ↑/↓ choose, m or Enter confirm, Esc cancel)");
+    }
+    let header_block = Block::default()
+        .title("AI Advisor")
         .borders(Borders::ALL);
-    let p = Paragraph::new(text).block(block);
-    f.render_widget(p, area);
+    let header = Paragraph::new(header_text).block(header_block);
+    f.render_widget(header, chunks[0]);
+
+    // middle: model selector (if active)
+    if app.advisor_selecting_model {
+        let models = [
+            "Qwen2.5-0.5B-Instruct (small, fast)",
+            "Qwen2.5-1.5B-Instruct (default)",
+            "Qwen2.5-3B-Instruct (better, slower)",
+            "Qwen2.5-7B-Instruct (largest, slowest)",
+        ];
+        let mut text = String::new();
+        for (idx, name) in models.iter().enumerate() {
+            let marker = if idx == app.advisor_model_choice_idx { "> " } else { "  " };
+            text.push_str(&format!("{}{}\n", marker, name));
+        }
+        let block = Block::default()
+            .title("Select Model")
+            .borders(Borders::ALL);
+        let p = Paragraph::new(text).block(block);
+        f.render_widget(p, chunks[1]);
+    } else {
+        // show prompt + advice if available
+        let mut text = String::new();
+        if !app.advisor_advice1.is_empty() || !app.advisor_advice2.is_empty() {
+            text.push_str("=== Prompt Summary (internal) ===\n");
+            if !app.advisor_prompt.is_empty() {
+                text.push_str(&app.advisor_prompt);
+                text.push_str("\n\n");
+            }
+            text.push_str("=== Advice #1 ===\n");
+            if !app.advisor_advice1.is_empty() {
+                text.push_str(&app.advisor_advice1);
+                text.push_str("\n\n");
+            } else {
+                text.push_str("(no advice yet)\n\n");
+            }
+            text.push_str("=== Advice #2 ===\n");
+            if !app.advisor_advice2.is_empty() {
+                text.push_str(&app.advisor_advice2);
+                text.push_str("\n");
+            } else {
+                text.push_str("(no second advice)\n");
+            }
+        } else {
+            text.push_str("Press 'g' to generate AI advice based on your recent spending.\n");
+        }
+
+        let block = Block::default()
+            .title("Advisor Output")
+            .borders(Borders::ALL);
+        let p = Paragraph::new(text)
+            .block(block)
+            .scroll((app.advisor_scroll, 0));
+        f.render_widget(p, chunks[1]);
+    }
+
+    // bottom: simple chat history & input
+    let chat_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(1),
+            Constraint::Length(3),
+        ])
+        .split(chunks[2]);
+
+    let mut chat_text = String::new();
+    for line in &app.advisor_chat_history {
+        chat_text.push_str(line);
+        chat_text.push('\n');
+    }
+    if chat_text.is_empty() {
+        chat_text.push_str("Press 'i' to ask a question (English), then Enter to send.\n");
+    }
+
+    let chat_block = Block::default()
+        .title("Chat History (PageUp/PageDown to scroll)")
+        .borders(Borders::ALL);
+    let chat_p = Paragraph::new(chat_text)
+        .block(chat_block)
+        .scroll((app.advisor_chat_scroll, 0));
+    f.render_widget(chat_p, chat_chunks[0]);
+
+    let mut input_label = "Chat (press 'i' to start): ".to_string();
+    if app.input_mode == InputMode::AdvisorChat {
+        input_label = "Chat (type, Enter send, Esc cancel): ".to_string();
+    }
+    let input_text = format!("{}{}", input_label, app.advisor_chat_input);
+    let input_block = Block::default()
+        .title("Advisor Chat")
+        .borders(Borders::ALL);
+    let input_p = Paragraph::new(input_text).block(input_block);
+    f.render_widget(input_p, chat_chunks[1]);
 }
 
 // new implemented
@@ -1042,7 +1320,7 @@ fn draw_create_transaction(f: &mut Frame<'_>, area: Rect, app: &App) {
     };
     text.push_str(&format!("{}Category: {} (j/k to change, n to create new)\n", category_marker, category_name));
     
-    // new implemented: show entries list
+    // show entries list
     let entries_marker = if app.new_tx_field_idx == 6 { "> " } else { "  " };
     text.push_str(&format!("{}Entries: {} (a: add, x: delete, j/k: select)", entries_marker, app.new_tx_entries.len()));
 
@@ -1052,7 +1330,6 @@ fn draw_create_transaction(f: &mut Frame<'_>, area: Rect, app: &App) {
     let p = Paragraph::new(text).block(block);
     f.render_widget(p, chunks[0]);
 
-    // new implemented: show entries list
     if !app.new_tx_entries.is_empty() {
         let rows = app.new_tx_entries.iter().enumerate().map(|(idx, (acc_idx, cat_idx, amount))| {
             let acc_name = app.ledger.account.get(*acc_idx)
@@ -1110,7 +1387,6 @@ fn draw_create_transaction(f: &mut Frame<'_>, area: Rect, app: &App) {
     }
 }
 
-// new implemented
 fn handle_key_create_account(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime) {
     use KeyCode::*;
 
@@ -1126,7 +1402,7 @@ fn handle_key_create_account(app: &mut App, key: KeyEvent, rt: &tokio::runtime::
             app.new_account_type_idx = if app.new_account_type_idx == 0 { 3 } else { app.new_account_type_idx - 1 };
         }
         Enter => {
-            app.error_message = None; // new implemented 
+            app.error_message = None;
             if app.new_account_name.trim().is_empty() {
                 app.error_message = Some("Account name is required".to_string());
             } else {
@@ -1135,7 +1411,6 @@ fn handle_key_create_account(app: &mut App, key: KeyEvent, rt: &tokio::runtime::
                         app.input_mode = InputMode::Normal;
                         app.needs_refresh = true;
                         app.success_message = Some("Account created".to_string());
-                        // new implemented
                         app.new_account_name = String::new();
                         app.new_account_type_idx = 0;
                         app.new_account_type_selection = 0;
@@ -1264,7 +1539,6 @@ fn draw_create_account(f: &mut Frame<'_>, area: Rect, app: &App) {
     let p = Paragraph::new(text).block(block);
     f.render_widget(p, chunks[0]);
 
-    // new implemented - show error/success messages
     if let Some(ref msg) = app.error_message {
         let err_block = Block::default()
             .title("Error")
@@ -1280,7 +1554,6 @@ fn draw_create_account(f: &mut Frame<'_>, area: Rect, app: &App) {
     }
 }
 
-// new implemented
 fn handle_key_create_category(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime) {
     use KeyCode::*;
 
@@ -1327,7 +1600,6 @@ fn submit_new_category(app: &mut App, rt: &tokio::runtime::Runtime) -> anyhow::R
     Ok(())
 }
 
-// new implemented
 fn draw_create_category(f: &mut Frame<'_>, area: Rect, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -1362,3 +1634,4 @@ fn draw_create_category(f: &mut Frame<'_>, area: Rect, app: &App) {
         f.render_widget(succ_p, chunks[1]);
     }
 }
+
