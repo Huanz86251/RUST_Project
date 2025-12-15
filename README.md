@@ -62,34 +62,6 @@ Most student-scale finance trackers that add AI features rely on third-party API
   
   Command-line TUI client for the finance tracker backend. Supports full CRUD over HTTP plus multi-entry transactions.
   
-  #### Prerequisites
-  - Rust toolchain
-  - Backend running (default: `http://127.0.0.1:8080`)
-  - Unless nesserary, you don't need to run it, the databse is already on cloud, database runs local may have compatibility issues for docker and database, to fix that please check backend/README.md. We recommend to skip local compilation of backend.
-  #### Run
-  ```bash
-  # start backend
-  cd backend
-  cargo run
-  
-  #### start TUI client
-  cd ../client
-  cargo run --release --bin client
-  ```
-  #### Optional: GPU Acceleration (CUDA / Metal)
-  The AI Advisor uses local LLM inference (Candle + GGUF).
-  - By default cargo run, it runs on CPU, which can be slow, if has to run on CPU, please degrade model size to 1.5B or 0.5B.
-  - You can enable GPU acceleration via Cargo features:
-  
-  #### cuda-NVIDIA GPU:
-  ```bash
-  cargo run --release --bin client --features cuda
-  ```
-  #### metal-macOS GPU
-  ```bash
-  cargo run --release --bin client --features metal
-  ```
-  
   #### Screens & Navigation
   - `Tab` / `Shift+Tab`: cycle screens (Dashboard → Accounts → Transactions → CategoryStats → AccountStats → Trends → Reconcile → Advisor → Help)
   - `↑` / `↓`: move selection in lists
@@ -156,6 +128,37 @@ Most student-scale finance trackers that add AI features rely on third-party API
     - The model uses tools (month summary, top categories/accounts, trends, upload transaction) to answer.  
     - Chat history scroll: `PageUp` / `PageDown` to move through older messages.
   
+
+### Reproducibility Guide
+
+  #### Prerequisites
+  - Rust toolchain
+  - Backend running (default: `http://127.0.0.1:8080`)
+  - Unless nesserary, you don't need to run it, the databse is already on cloud, database runs local may have compatibility issues for docker and database, to fix that please check backend/README.md. We recommend to skip local compilation of backend.
+  #### Run
+  ```bash
+  # start backend
+  cd backend
+  cargo run
+  
+  #### start TUI client
+  cd ../client
+  cargo run --release --bin client
+  ```
+  #### Optional: GPU Acceleration (CUDA / Metal)
+  The AI Advisor uses local LLM inference (Candle + GGUF).
+  - By default cargo run, it runs on CPU, which can be slow, if has to run on CPU, please degrade model size to 1.5B or 0.5B.
+  - You can enable GPU acceleration via Cargo features:
+  
+  #### cuda-NVIDIA GPU:
+  ```bash
+  cargo run --release --bin client --features cuda
+  ```
+  #### metal-macOS GPU
+  ```bash
+  cargo run --release --bin client --features metal
+  ```
   #### Notes
   - Footer shows context-specific shortcuts; errors/success messages appear near footer or panels.
   - Backend endpoints: see `backend/README.md`.
+    
