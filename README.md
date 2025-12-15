@@ -52,7 +52,7 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
 
 
 
-### User’s (or Developer’s) Guide:
+## User’s (or Developer’s) Guide:
   
   Command-line TUI client for the finance tracker backend. Supports full CRUD over HTTP plus multi-entry transactions.
   
@@ -121,17 +121,17 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
     - Type a question in English, `Enter` to send, `Esc` to cancel.  
     - The model uses tools (month summary, top categories/accounts, trends, upload transaction) to answer.  
     - Chat history scroll: `PageUp` / `PageDown` to move through older messages.
-#### User guide for backend server without client (Only Curl)
+### User guide for backend server without client (Only Curl)
 
-##### For developer who want to try server with local database:
+#### For developer who want to try server with local database:
 cargo run --release
 BASE=http://localhost:8080
 
-##### For users  or developer that want to try Database stored in a HTTPS back-end server:
+#### For users  or developer that want to try Database stored in a HTTPS back-end server:
 BASE=https://finance-backend.bravestone-51d4c984.canadacentral.azurecontainerapps.io
 ### And you don't need to cargo run.
 
-##### 1. Register
+#### 1. Register
 curl -i -X POST "$BASE/auth/register" \
   -H "Content-Type: application/json" \
   -d '{
@@ -139,15 +139,15 @@ curl -i -X POST "$BASE/auth/register" \
     "password": "TestPass123!"
   }'
 
-##### 2. Login to get JWT – POST /auth/login
-##### 2.1 Quickly inspect the response
+#### 2. Login to get JWT – POST /auth/login
+#### 2.1 Quickly inspect the response
 curl -i -X POST "$BASE/auth/login" \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test1@example.com",
     "password": "TestPass123!"
   }'
-##### 2.2 Use jq to extract the token
+#### 2.2 Use jq to extract the token
 TOKEN=$(curl -sS -X POST "$BASE/auth/login" \
   -H "Content-Type: application/json" \
   -d '{
@@ -157,17 +157,17 @@ TOKEN=$(curl -sS -X POST "$BASE/auth/login" \
 
 echo "$TOKEN"
 
-##### 3. Test root route – GET /
+#### 3. Test root route – GET /
 curl -i "$BASE/" \
   -H "Authorization: Bearer $TOKEN"
 
 
-###### Expected something like:
+##### Expected something like:
 
 Hello, user_id=xxxx-...
 
-##### 4. Accounts – /accounts
-##### 4.1 Create an account – POST /accounts
+#### 4. Accounts – /accounts
+#### 4.1 Create an account – POST /accounts
 curl -i -X POST "$BASE/accounts" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
@@ -178,22 +178,22 @@ curl -i -X POST "$BASE/accounts" \
     "opening_balance": 1000.00
   }'
 
-##### 4.2 List accounts (simple) – GET /accounts
+#### 4.2 List accounts (simple) – GET /accounts
 curl -i "$BASE/accounts" \
   -H "Authorization: Bearer $TOKEN"
 
-##### 4.3 With balance & filters/sorting
+#### 4.3 With balance & filters/sorting
 curl -i "$BASE/accounts?include_balance=true&limit=50&offset=0&sort=created_at&order=desc" \
   -H "Authorization: Bearer $TOKEN"
 
 
-###### You can also filter by checking accounts and CAD, for example:
+##### You can also filter by checking accounts and CAD, for example:
 
 curl -i "$BASE/accounts?type=checking&currency=CAD&include_balance=true" \
   -H "Authorization: Bearer $TOKEN"
 
-##### 5. Categories – /categories
-##### 5.1 Create a top-level category – POST /categories
+#### 5. Categories – /categories
+#### 5.1 Create a top-level category – POST /categories
 curl -i -X POST "$BASE/categories" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
@@ -202,7 +202,7 @@ curl -i -X POST "$BASE/categories" \
     "parent_id": null
   }'
 
-##### 5.2 Create a subcategory (assume Food has id = 1)
+#### 5.2 Create a subcategory (assume Food has id = 1)
 curl -i -X POST "$BASE/categories" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
@@ -211,13 +211,13 @@ curl -i -X POST "$BASE/categories" \
     "parent_id": 1
   }'
 
-##### 5.3 List all categories – GET /categories
+#### 5.3 List all categories – GET /categories
 curl -i "$BASE/categories" \
   -H "Authorization: Bearer $TOKEN"
 
-##### 6. Transactions & entries – /transactions
+#### 6. Transactions & entries – /transactions
 
-###### Your request body structure (CreateTransactionsReq in backend) is:
+##### Your request body structure (CreateTransactionsReq in backend) is:
 
 {
   "payee": "optional",
@@ -233,9 +233,9 @@ curl -i "$BASE/categories" \
   ]
 }
 
-##### 6.1 Create a transaction (expense) – POST /transactions
+#### 6.1 Create a transaction (expense) – POST /transactions
 
-###### Example: on account 1, category 2, spend 20.5:
+##### Example: on account 1, category 2, spend 20.5:
 
 curl -i -X POST "$BASE/transactions" \
   -H "Content-Type: application/json" \
@@ -255,7 +255,7 @@ curl -i -X POST "$BASE/transactions" \
   }'
 
 
-###### You can also create an “income” transaction:
+##### You can also create an “income” transaction:
 
 curl -i -X POST "$BASE/transactions" \
   -H "Content-Type: application/json" \
@@ -274,37 +274,37 @@ curl -i -X POST "$BASE/transactions" \
     ]
   }'
 
-##### 6.2 List transactions – GET /transactions
+#### 6.2 List transactions – GET /transactions
 
-###### Simple list (default limit/offset):
+##### Simple list (default limit/offset):
 
 curl -i "$BASE/transactions" \
   -H "Authorization: Bearer $TOKEN"
 
 
-###### With pagination parameters:
+##### With pagination parameters:
 
 curl -i "$BASE/transactions?limit=50&offset=0" \
   -H "Authorization: Bearer $TOKEN"
 
 
-###### Each returned TransactionsDto includes entries: Vec<EntriesDto>.
+##### Each returned TransactionsDto includes entries: Vec<EntriesDto>.
 
-##### 7. Ledger summary snapshot – /ledger or /ledger/snapshot
+#### 7. Ledger summary snapshot – /ledger or /ledger/snapshot
 
-##### If you mount the handler on /ledger, it’s roughly like this:
+#### If you mount the handler on /ledger, it’s roughly like this:
 
 curl -i "$BASE/ledger" \
   -H "Authorization: Bearer $TOKEN"
 
 
-##### If it’s /ledger/snapshot, then:
+#### If it’s /ledger/snapshot, then:
 
 curl -i "$BASE/ledger/snapshot" \
   -H "Authorization: Bearer $TOKEN"
  
 
-### Reproducibility Guide
+## Reproducibility Guide
 
   #### Prerequisites
   - Rust toolchain
@@ -338,12 +338,12 @@ curl -i "$BASE/ledger/snapshot" \
   - Backend endpoints: see `backend/README.md`.
 
 
-### Backend Reproducibility Guide for developer
-#### First clone the git repo, if already cloned, enter backend directionary
+## Backend Reproducibility Guide for developer
+### First clone the git repo, if already cloned, enter backend directionary
 git clone https://github.com/Huanz86251/RUST_Project.git
 cd RUST_Project/backend
-#### Then check Rustc version, require at least 1.88
-#### If not, try to update the rustc.
+### Then check Rustc version, require at least 1.88
+### If not, try to update the rustc.
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source "$HOME/.cargo/env"
 
@@ -352,16 +352,16 @@ rustup default stable
 
 rustc --version
 
-#### Download Docker
-##### If already downloaded, pls verify
+### Download Docker
+#### If already downloaded, pls verify
 
 docker --version
 docker compose version
 sudo docker run --rm hello-world
-##### macOS Sonoma
+#### macOS Sonoma
 brew install --cask docker
 
-##### Ubuntu system
+#### Ubuntu system
 sudo apt-get remove -y docker.io docker-doc docker-compose podman-docker containerd runc || true
 
 sudo apt-get update
@@ -382,7 +382,7 @@ echo \
 docker --version
 docker compose version
 
-##### Debian system
+#### Debian system
 sudo install -m 0755 -d /etc/apt/keyrings
 sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
 sudo chmod a+r /etc/apt/keyrings/docker.asc
@@ -395,43 +395,43 @@ sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 sudo apt-get update
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-##### Check if Docker daemon is running
+#### Check if Docker daemon is running
 sudo systemctl status docker --no-pager
-##### If not, run
+#### If not, run
 sudo systemctl enable --now docker
-##### Add user into docker group
+#### Add user into docker group
 sudo usermod -aG docker $USER
 newgrp docker
-##### Now run the docker compose to build the DB.
+#### Now run the docker compose to build the DB.
 docker compose up -d
 
-##### it should show STATUS healthy
+#### it should show STATUS healthy
 sudo docker compose ps
 
-#### If there's no .env file or you want to create your own .env, run these cmd
+### If there's no .env file or you want to create your own .env, run these cmd
 JWT_SECRET="$(openssl rand -hex 32)" && cat > .env <<EOF
 DATABASE_URL=postgres://finance:finance_pw@localhost:5432/finance
 JWT_SECRET=$JWT_SECRET
 EOF
 
-#### Install sqlx
+### Install sqlx
 cargo install sqlx-cli --no-default-features --features postgres --locked
 
-#### Build the Sql using SQLx migrations
+### Build the Sql using SQLx migrations
 DATABASE_URL=postgres://finance:finance_pw@localhost:5432/finance sqlx migrate run
 
-#### Try to run cargo build
+### Try to run cargo build
 DATABASE_URL=postgres://finance:finance_pw@localhost:5432/finance cargo sqlx prepare
 cargo build
     
-### Contributions by each team member
+## Contributions by each team member
 **Zihao Gong (Back-end & Database)**: Implemented the HTTPS back-end service, including the overall API structure, database schema design and migrations, and core endpoints for authentication and finance operations. This member focused on ensuring data correctness and security, such as user-scoped access control, validation, and consistent handling of complex split transactions.
 
 **Zixuan Huang (Back-end & Database)**: Implemented the offline LLM integration and the client-side analytics core. This included running quantized Qwen2.5 models locally with Candle (tokenizer/weight loading, device selection, and generation settings), building an LLM tool-calling agent chain, and implementing the Ledger statistics layer (monthly summaries, recent trends, and top category/account ranking). In addition, developed Cloud↔Local data mappings to connect the TUI/AI workflow with the back-end service.
 
 **Shiming Zhang (TUI Client & System Integration)**: Designed and implemented the Ratatui-based TUI client, including the screen layout (Dashboard, Accounts, Transactions, Trends, Reconcile, Advisor, Help) and keyboard navigation. Implemented HTTP client integration in the TUI (fetching and mutating data via the back-end API), including creating/deleting transactions, creating accounts/categories, and handling error/success messages. Built the AI Advisor TUI features (model selection, advice generation, chat interface with scrolling)
 
-### Lessons learned and concluding remarks
+## Lessons learned and concluding remarks
 Through this project, we learned how to better divide tasks and collaborate, and how teammates can agree on interfaces. For example, our data analysis and TUI teams uniformly used the ledger structure as the central hub, which greatly simplified subsequent integration. Backend-client integration only required writing a mapping structure. We also learned how to call models, maintain the model's forward process, assemble templates, call agents, and build TUI within the Rust environment. The most direct takeaway was that debugging after a Rust project is completed is indeed easier, but the development process has a higher upfront development cost. This project helped us learn how to develop an end-to-end Rust project.
 ### Innovation
 Most student-scale finance trackers that add AI features rely on third-party APIs, while they rarely demonstrate a complete offline LLM workflow. We load quantized large models locally (Candle + GGUF), concatenate prompt word templates, control generation configuration, run the full inference loop, and maintain a lightweight tool-calling agent chain to route user questions to multiple finance analytics agents, ensuring compatibility with CPU, CUDA, and METAL. We allow users to flexibly choose different sizes of LLM (0.5B-7B) according to their own devices (a smaller model may fail for calling tools). Compared to using an API, we can better protect user privacy while reducing money cost, which serves as a practical reference for other similar small projects. 
