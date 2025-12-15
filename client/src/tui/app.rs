@@ -1,6 +1,6 @@
+use crate::advisor::Modeltype;
 use crate::stat::Ledger;
 use crate::stat::datatype::{Entry, UserId};
-use crate::advisor::Modeltype;
 use chrono::{Datelike, Local};
 
 #[derive(Copy, Clone, Debug)]
@@ -20,10 +20,10 @@ pub enum Screen {
 pub enum InputMode {
     Normal,
     EditingReconcile,
-    CreatingTransaction, 
+    CreatingTransaction,
     CreatingCategory,
     CreatingAccount,
-    AdvisorChat,    
+    AdvisorChat,
 }
 
 #[derive(Clone, Debug)]
@@ -87,9 +87,9 @@ pub struct App {
     pub advisor_prompt: String,
     pub advisor_advice1: String,
     pub advisor_advice2: String,
-    pub advisor_scroll: u16, 
-    pub advisor_chat_input: String, 
-    pub advisor_chat_history: Vec<String>, 
+    pub advisor_scroll: u16,
+    pub advisor_chat_input: String,
+    pub advisor_chat_history: Vec<String>,
     pub advisor_chat_scroll: u16,
 }
 
@@ -171,7 +171,7 @@ impl App {
             new_account_type_selection: 0,
             new_account_currency: String::from("USD"),
             new_account_balance: String::new(),
-            advisor_model_type: Modeltype::Qwen25_1_5B,
+            advisor_model_type: Modeltype::Qwen25_3B,
             advisor_model_choice_idx: 1,
             advisor_selecting_model: false,
             advisor_prompt: String::new(),

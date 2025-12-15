@@ -7,20 +7,20 @@ use std::time::Duration;
 use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{
+    Frame, Terminal,
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::Span,
     widgets::{Block, Borders, Paragraph, Row, Table},
-    Frame, Terminal,
 };
 
+use super::app::{App, InputMode, Screen};
+use crate::advisor::{Generationcfg, Model, Modeltype};
 use crate::stat::Ledger;
-use crate::advisor::{Model, Modeltype, Generationcfg};
-use super::app::{App, Screen, InputMode};
 use anyhow;
 
 pub fn run_tui(ledger: Ledger, base_url: String, token: String) -> anyhow::Result<()> {
@@ -40,17 +40,22 @@ pub fn run_tui(ledger: Ledger, base_url: String, token: String) -> anyhow::Resul
             break;
         }
 
-        if app.needs_refresh { 
+        if app.needs_refresh {
             app.needs_refresh = false;
-            match rt.block_on(
-                crate::stat::sync::download_ledger_from_server(&app.base_url, &app.token)
-            ) {
+            match rt.block_on(crate::stat::sync::download_ledger_from_server(
+                &app.base_url,
+                &app.token,
+            )) {
                 Ok(new_ledger) => {
                     if app.is_creating_new_category && !app.new_category_name.trim().is_empty() {
-                        if let Some(new_cat) = new_ledger.category.iter()
+                        if let Some(new_cat) = new_ledger
+                            .category
+                            .iter()
                             .find(|c| c.name == app.new_category_name.trim())
                         {
-                            app.new_tx_category_idx = new_ledger.category.iter()
+                            app.new_tx_category_idx = new_ledger
+                                .category
+                                .iter()
                                 .position(|c| c.id == new_cat.id)
                                 .unwrap_or(0);
                         }
@@ -107,7 +112,7 @@ fn handle_key_normal(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime)
         BackTab => app.prev_screen(),
 
         // Change month on Dashboard
-        Left  => app.prev_month(),
+        Left => app.prev_month(),
         Right => app.next_month(),
 
         // Shift global time range
@@ -188,7 +193,10 @@ fn handle_key_normal(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime)
         }
 
         Char('n') => {
-            if matches!(app.current_screen, Screen::Dashboard | Screen::Accounts | Screen::Transactions) {
+            if matches!(
+                app.current_screen,
+                Screen::Dashboard | Screen::Accounts | Screen::Transactions
+            ) {
                 app.input_mode = InputMode::CreatingTransaction;
                 app.new_tx_date = chrono::Local::now().format("%Y-%m-%d").to_string();
                 app.new_tx_payee = String::new();
@@ -203,19 +211,16 @@ fn handle_key_normal(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime)
         Char('d') => {
             if let Screen::Accounts = app.current_screen {
                 if let Some(account) = app.ledger.account.get(app.selected_account_idx) {
-                    if let Some(entry) = app.ledger.entry.iter()
-                        .find(|e| e.accountid == account.id)
+                    if let Some(entry) = app.ledger.entry.iter().find(|e| e.accountid == account.id)
                     {
-                        if let Some(tx) = app.ledger.transaction.iter()
-                            .find(|t| t.id == entry.tranid)
+                        if let Some(tx) =
+                            app.ledger.transaction.iter().find(|t| t.id == entry.tranid)
                         {
-                            match rt.block_on(
-                                crate::stat::sync::delete_transaction_on_server(
-                                    &app.base_url,
-                                    &app.token,
-                                    tx.id
-                                )
-                            ) {
+                            match rt.block_on(crate::stat::sync::delete_transaction_on_server(
+                                &app.base_url,
+                                &app.token,
+                                tx.id,
+                            )) {
                                 Ok(_) => {
                                     app.needs_refresh = true;
                                     app.success_message = Some("Transaction deleted".to_string());
@@ -231,7 +236,8 @@ fn handle_key_normal(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime)
         }
 
         Char('c') => {
-            if matches!(app.current_screen, Screen::Accounts) && app.input_mode == InputMode::Normal {
+            if matches!(app.current_screen, Screen::Accounts) && app.input_mode == InputMode::Normal
+            {
                 app.input_mode = InputMode::CreatingAccount;
                 app.new_account_name = String::new();
                 app.new_account_type_idx = 0;
@@ -324,7 +330,11 @@ fn handle_key_create_tx(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runti
             app.new_tx_field_idx = (app.new_tx_field_idx + 1) % 7;
         }
         BackTab => {
-            app.new_tx_field_idx = if app.new_tx_field_idx == 0 { 6 } else { app.new_tx_field_idx - 1 };
+            app.new_tx_field_idx = if app.new_tx_field_idx == 0 {
+                6
+            } else {
+                app.new_tx_field_idx - 1
+            };
         }
         Char('a') => {
             if app.new_tx_amount.trim().is_empty() {
@@ -337,7 +347,11 @@ fn handle_key_create_tx(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runti
                         return;
                     }
                 };
-                app.new_tx_entries.push((app.new_tx_account_idx, app.new_tx_category_idx, app.new_tx_amount.clone()));
+                app.new_tx_entries.push((
+                    app.new_tx_account_idx,
+                    app.new_tx_category_idx,
+                    app.new_tx_amount.clone(),
+                ));
                 app.new_tx_amount.clear();
                 app.new_tx_account_idx = 0;
                 app.new_tx_category_idx = 0;
@@ -345,9 +359,13 @@ fn handle_key_create_tx(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runti
             }
         }
         Char('x') => {
-            if !app.new_tx_entries.is_empty() && app.new_tx_selected_entry_idx < app.new_tx_entries.len() {
+            if !app.new_tx_entries.is_empty()
+                && app.new_tx_selected_entry_idx < app.new_tx_entries.len()
+            {
                 app.new_tx_entries.remove(app.new_tx_selected_entry_idx);
-                if app.new_tx_selected_entry_idx >= app.new_tx_entries.len() && !app.new_tx_entries.is_empty() {
+                if app.new_tx_selected_entry_idx >= app.new_tx_entries.len()
+                    && !app.new_tx_entries.is_empty()
+                {
                     app.new_tx_selected_entry_idx = app.new_tx_entries.len() - 1;
                 }
             }
@@ -356,7 +374,8 @@ fn handle_key_create_tx(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runti
             if app.new_tx_date.trim().is_empty() {
                 app.error_message = Some("Date is required".to_string());
             } else if app.new_tx_entries.is_empty() && app.new_tx_amount.trim().is_empty() {
-                app.error_message = Some("At least one entry is required (press 'a' to add entry)".to_string());
+                app.error_message =
+                    Some("At least one entry is required (press 'a' to add entry)".to_string());
             } else if let Err(e) = submit_new_transaction(app, rt) {
                 app.error_message = Some(format!("Failed: {}", e));
             } else {
@@ -365,75 +384,96 @@ fn handle_key_create_tx(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runti
                 app.success_message = Some("Transaction created".to_string());
             }
         }
-        Backspace => {
-            match app.new_tx_field_idx {
-                0 => { app.new_tx_date.pop(); }
-                1 => { app.new_tx_payee.pop(); }
-                2 => { app.new_tx_memo.pop(); }
-                3 => { app.new_tx_amount.pop(); }
-                _ => {}
+        Backspace => match app.new_tx_field_idx {
+            0 => {
+                app.new_tx_date.pop();
             }
-        }
-        Char(c) => {
-            match app.new_tx_field_idx {
-                0 => { app.new_tx_date.push(c); }
-                1 => { app.new_tx_payee.push(c); }
-                2 => { app.new_tx_memo.push(c); }
-                3 => { if c.is_ascii_digit() || c == '.' || c == '-' { app.new_tx_amount.push(c); } }
-                4 => {
-                    if c == 'j' && app.new_tx_account_idx > 0 {
-                        app.new_tx_account_idx -= 1;
-                    } else if c == 'k' {
-                        app.new_tx_account_idx = (app.new_tx_account_idx + 1).min(app.ledger.account.len().saturating_sub(1));
-                    }
-                }
-                5 => {
-                    if c == 'n' {
-                        app.is_creating_new_category = true;
-                        app.input_mode = InputMode::CreatingCategory;
-                        app.new_category_name = String::new();
-                    } else if c == 'j' && app.new_tx_category_idx > 0 {
-                        app.new_tx_category_idx -= 1;
-                    } else if c == 'k' {
-                        let max_idx = app.ledger.category.len();
-                        app.new_tx_category_idx = (app.new_tx_category_idx + 1).min(max_idx);
-                    }
-                }
-                6 => {
-                    if c == 'j' && app.new_tx_selected_entry_idx > 0 {
-                        app.new_tx_selected_entry_idx -= 1;
-                    } else if c == 'k' {
-                        app.new_tx_selected_entry_idx = (app.new_tx_selected_entry_idx + 1).min(app.new_tx_entries.len().saturating_sub(1));
-                    }
-                }
-                _ => {}
+            1 => {
+                app.new_tx_payee.pop();
             }
-        }
+            2 => {
+                app.new_tx_memo.pop();
+            }
+            3 => {
+                app.new_tx_amount.pop();
+            }
+            _ => {}
+        },
+        Char(c) => match app.new_tx_field_idx {
+            0 => {
+                app.new_tx_date.push(c);
+            }
+            1 => {
+                app.new_tx_payee.push(c);
+            }
+            2 => {
+                app.new_tx_memo.push(c);
+            }
+            3 => {
+                if c.is_ascii_digit() || c == '.' || c == '-' {
+                    app.new_tx_amount.push(c);
+                }
+            }
+            4 => {
+                if c == 'j' && app.new_tx_account_idx > 0 {
+                    app.new_tx_account_idx -= 1;
+                } else if c == 'k' {
+                    app.new_tx_account_idx = (app.new_tx_account_idx + 1)
+                        .min(app.ledger.account.len().saturating_sub(1));
+                }
+            }
+            5 => {
+                if c == 'n' {
+                    app.is_creating_new_category = true;
+                    app.input_mode = InputMode::CreatingCategory;
+                    app.new_category_name = String::new();
+                } else if c == 'j' && app.new_tx_category_idx > 0 {
+                    app.new_tx_category_idx -= 1;
+                } else if c == 'k' {
+                    let max_idx = app.ledger.category.len();
+                    app.new_tx_category_idx = (app.new_tx_category_idx + 1).min(max_idx);
+                }
+            }
+            6 => {
+                if c == 'j' && app.new_tx_selected_entry_idx > 0 {
+                    app.new_tx_selected_entry_idx -= 1;
+                } else if c == 'k' {
+                    app.new_tx_selected_entry_idx = (app.new_tx_selected_entry_idx + 1)
+                        .min(app.new_tx_entries.len().saturating_sub(1));
+                }
+            }
+            _ => {}
+        },
         _ => {}
     }
 }
 
 fn submit_new_transaction(app: &mut App, rt: &tokio::runtime::Runtime) -> anyhow::Result<()> {
     use crate::stat::sync::*;
-    use rust_decimal::Decimal;
     use chrono::NaiveDate;
+    use rust_decimal::Decimal;
 
     if app.new_tx_date.trim().is_empty() {
         return Err(anyhow::anyhow!("Date is required").into());
     }
     let date = NaiveDate::parse_from_str(&app.new_tx_date.trim(), "%Y-%m-%d")
         .map_err(|_| anyhow::anyhow!("Invalid date format (use YYYY-MM-DD)"))?;
-    
+
     let mut entries = Vec::new();
-    
+
     //add entries from list
     for (account_idx, category_idx, amount_str) in &app.new_tx_entries {
-        let amount: f64 = amount_str.trim().parse()
+        let amount: f64 = amount_str
+            .trim()
+            .parse()
             .map_err(|_| anyhow::anyhow!("Invalid amount in entry: {}", amount_str))?;
         if amount <= 0.0 {
             return Err(anyhow::anyhow!("Amount must be greater than 0").into());
         }
-        let account = app.ledger.account.get(*account_idx)
+        let account = app
+            .ledger
+            .account
+            .get(*account_idx)
             .ok_or_else(|| anyhow::anyhow!("Invalid account in entry"))?;
         let category_id = if *category_idx >= app.ledger.category.len() {
             None
@@ -447,44 +487,62 @@ fn submit_new_transaction(app: &mut App, rt: &tokio::runtime::Runtime) -> anyhow
             note: None,
         });
     }
-    
+
     // add current entry if amount is filled
     if !app.new_tx_amount.trim().is_empty() {
-        let amount: f64 = app.new_tx_amount.trim().parse()
+        let amount: f64 = app
+            .new_tx_amount
+            .trim()
+            .parse()
             .map_err(|_| anyhow::anyhow!("Invalid amount (must be a number)"))?;
         if amount <= 0.0 {
             return Err(anyhow::anyhow!("Amount must be greater than 0").into());
         }
-        let account = app.ledger.account.get(app.new_tx_account_idx)
+        let account = app
+            .ledger
+            .account
+            .get(app.new_tx_account_idx)
             .ok_or_else(|| anyhow::anyhow!("Invalid account"))?;
         let category_id = if app.is_creating_new_category {
             None
         } else {
-            app.ledger.category.get(app.new_tx_category_idx)
+            app.ledger
+                .category
+                .get(app.new_tx_category_idx)
                 .map(|c| c.id)
         };
         entries.push(Entryreq {
             account_id: account.id,
             category_id,
             amount: Decimal::from_f64(-amount.abs()).unwrap(),
-            note: if app.new_tx_memo.is_empty() { None } else { Some(app.new_tx_memo.clone()) },
+            note: if app.new_tx_memo.is_empty() {
+                None
+            } else {
+                Some(app.new_tx_memo.clone())
+            },
         });
     }
-    
+
     if entries.is_empty() {
         return Err(anyhow::anyhow!("At least one entry is required").into());
     }
 
-    rt.block_on(
-        create_cloudtransaction(
-            &app.base_url,
-            &app.token,
-            date,
-            if app.new_tx_payee.is_empty() { None } else { Some(&app.new_tx_payee) },
-            if app.new_tx_memo.is_empty() { None } else { Some(&app.new_tx_memo) },
-            entries,
-        )
-    )?;
+    rt.block_on(create_cloudtransaction(
+        &app.base_url,
+        &app.token,
+        date,
+        if app.new_tx_payee.is_empty() {
+            None
+        } else {
+            Some(&app.new_tx_payee)
+        },
+        if app.new_tx_memo.is_empty() {
+            None
+        } else {
+            Some(&app.new_tx_memo)
+        },
+        entries,
+    ))?;
     Ok(())
 }
 
@@ -528,15 +586,13 @@ fn handle_key_advisor_chat(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Ru
                 return;
             }
             // push user message
-            app.advisor_chat_history
-                .push(format!("You: {}", question));
+            app.advisor_chat_history.push(format!("You: {}", question));
             app.advisor_chat_input.clear();
             app.advisor_chat_scroll = 0; // new implemented: scroll to bottom
 
             match advisor_answer_chat(app, rt, &question) {
                 Ok(answer) => {
-                    app.advisor_chat_history
-                        .push(format!("AI: {}", answer));
+                    app.advisor_chat_history.push(format!("AI: {}", answer));
                     app.input_mode = InputMode::Normal;
                 }
                 Err(e) => {
@@ -560,9 +616,9 @@ fn ui(f: &mut Frame<'_>, app: &App) {
         .direction(Direction::Vertical)
         .margin(1)
         .constraints([
-            Constraint::Length(3),  // header
-            Constraint::Min(0),     // main
-            Constraint::Length(1),  // footer
+            Constraint::Length(3), // header
+            Constraint::Min(0),    // main
+            Constraint::Length(1), // footer
         ])
         .split(f.area());
 
@@ -570,21 +626,20 @@ fn ui(f: &mut Frame<'_>, app: &App) {
     let (sy, sm) = app.start_month;
     let (ey, em) = app.end_month;
     let screen_name = match app.current_screen {
-        Screen::Dashboard     => "Dashboard",
-        Screen::Accounts      => "Accounts",
+        Screen::Dashboard => "Dashboard",
+        Screen::Accounts => "Accounts",
         Screen::Transactions => "Transactions",
         Screen::CategoryStats => "Category Stats",
-        Screen::AccountStats  => "Account Stats",
-        Screen::Trends        => "Trends",
-        Screen::Reconcile     => "Reconcile",
-        Screen::Help          => "Help",
-        Screen::Advisor       => "Advisor",
+        Screen::AccountStats => "Account Stats",
+        Screen::Trends => "Trends",
+        Screen::Reconcile => "Reconcile",
+        Screen::Help => "Help",
+        Screen::Advisor => "Advisor",
     };
     let header_text = format!(
         "Rust Finance Tracker - {screen_name}   |   Range: {sy:04}-{sm:02} ~ {ey:04}-{em:02}"
     );
-    let header = Paragraph::new(header_text)
-        .block(Block::default().borders(Borders::ALL));
+    let header = Paragraph::new(header_text).block(Block::default().borders(Borders::ALL));
     f.render_widget(header, chunks[0]);
 
     // Main content
@@ -608,14 +663,14 @@ fn ui(f: &mut Frame<'_>, app: &App) {
             } else {
                 draw_accounts(f, chunks[1], app);
             }
-        },
+        }
         Screen::Transactions => draw_transactions(f, chunks[1], app),
         Screen::CategoryStats => draw_category_stats(f, chunks[1], app),
-        Screen::AccountStats  => draw_account_stats(f, chunks[1], app),
-        Screen::Trends        => draw_trends(f, chunks[1], app),
-        Screen::Reconcile     => draw_reconcile(f, chunks[1], app),
-        Screen::Advisor       => draw_advisor(f, chunks[1], app),
-        Screen::Help          => draw_help(f, chunks[1], app),
+        Screen::AccountStats => draw_account_stats(f, chunks[1], app),
+        Screen::Trends => draw_trends(f, chunks[1], app),
+        Screen::Reconcile => draw_reconcile(f, chunks[1], app),
+        Screen::Advisor => draw_advisor(f, chunks[1], app),
+        Screen::Help => draw_help(f, chunks[1], app),
     }
 
     // Footer
@@ -645,8 +700,7 @@ fn ui(f: &mut Frame<'_>, app: &App) {
             }
         }
     };
-    let footer = Paragraph::new(footer_text)
-        .block(Block::default().borders(Borders::ALL));
+    let footer = Paragraph::new(footer_text).block(Block::default().borders(Borders::ALL));
     f.render_widget(footer, chunks[2]);
 }
 
@@ -654,33 +708,15 @@ fn draw_dashboard(f: &mut Frame<'_>, area: Rect, app: &App) {
     let (year, month) = app.selected_month;
     let user_id = app.user_id;
 
-    let income = app.ledger.month_summary(
-        user_id,
-        year,
-        month,
-        None,
-        None,
-        Some(false),
-        None,
-    );
-    let outcome = app.ledger.month_summary(
-        user_id,
-        year,
-        month,
-        None,
-        None,
-        Some(true),
-        None,
-    );
-    let net = app.ledger.month_summary(
-        user_id,
-        year,
-        month,
-        None,
-        None,
-        None,
-        None,
-    );
+    let income = app
+        .ledger
+        .month_summary(user_id, year, month, None, None, Some(false), None);
+    let outcome = app
+        .ledger
+        .month_summary(user_id, year, month, None, None, Some(true), None);
+    let net = app
+        .ledger
+        .month_summary(user_id, year, month, None, None, None, None);
 
     let text = format!(
         "Focused Month: {year:04}-{month:02}\n\
@@ -705,27 +741,24 @@ fn draw_accounts(f: &mut Frame<'_>, area: Rect, app: &App) {
         selected_idx = accounts.len() - 1;
     }
 
-    let rows = accounts
-        .iter()
-        .enumerate()
-        .map(|(idx, acc)| {
-            let acc_type_str = format!("{:?}", acc.account_type);
-            let currency_str = format!("{:?}", acc.currency);
+    let rows = accounts.iter().enumerate().map(|(idx, acc)| {
+        let acc_type_str = format!("{:?}", acc.account_type);
+        let currency_str = format!("{:?}", acc.currency);
 
-            let cells = vec![
-                acc.accountid.to_string(),
-                acc.name.clone(),
-                acc_type_str,
-                format!("{:.2}", acc.balance),
-                currency_str,
-            ];
+        let cells = vec![
+            acc.accountid.to_string(),
+            acc.name.clone(),
+            acc_type_str,
+            format!("{:.2}", acc.balance),
+            currency_str,
+        ];
 
-            let mut row = Row::new(cells);
-            if idx == selected_idx {
-                row = row.style(Style::default().add_modifier(Modifier::REVERSED));
-            }
-            row
-        });
+        let mut row = Row::new(cells);
+        if idx == selected_idx {
+            row = row.style(Style::default().add_modifier(Modifier::REVERSED));
+        }
+        row
+    });
 
     let widths = [
         Constraint::Length(4),
@@ -740,17 +773,12 @@ fn draw_accounts(f: &mut Frame<'_>, area: Rect, app: &App) {
             Row::new(vec!["ID", "Name", "Type", "Balance", "Currency"])
                 .style(Style::default().add_modifier(Modifier::BOLD)),
         )
-        .block(
-            Block::default()
-                .title("Accounts")
-                .borders(Borders::ALL),
-        );
+        .block(Block::default().title("Accounts").borders(Borders::ALL));
 
     f.render_widget(table, area);
 }
 
 fn draw_category_stats(f: &mut Frame<'_>, area: Rect, app: &App) {
-
     let timephase = (app.start_month, app.end_month);
     let trend = app
         .ledger
@@ -760,7 +788,7 @@ fn draw_category_stats(f: &mut Frame<'_>, area: Rect, app: &App) {
     // (name, income, outcome, net, percentage_of_spend)
     let mut data: Vec<(String, f64, f64, f64, f64)> = Vec::new();
     for i in 0..trend.axis.len() {
-        let name = trend.axis[i].clone(); 
+        let name = trend.axis[i].clone();
         let income = trend.income[i];
         let outcome = trend.outcome[i];
         let net = trend.summary[i];
@@ -818,44 +846,45 @@ fn draw_category_stats(f: &mut Frame<'_>, area: Rect, app: &App) {
 
 fn draw_transactions(f: &mut Frame<'_>, area: Rect, app: &App) {
     let transactions = &app.ledger.transaction;
-    
+
     let mut selected_idx = app.selected_transaction_idx;
     if !transactions.is_empty() && selected_idx >= transactions.len() {
         selected_idx = transactions.len() - 1;
     }
 
-    let rows = transactions
-        .iter()
-        .enumerate()
-        .map(|(idx, tx)| {
-            let total_amount: f64 = app.ledger.entry
-                .iter()
-                .filter(|e| e.tranid == tx.id)
-                .map(|e| e.amount)
-                .sum();
-            
-            let entry_count = app.ledger.entry
-                .iter()
-                .filter(|e| e.tranid == tx.id)
-                .count();
-            
-            let payee_str = tx.receiver.as_deref().unwrap_or("-");
-            let memo_str = tx.desc.as_deref().unwrap_or("-");
-            
-            let cells = vec![
-                format!("{}", tx.occur_date),
-                payee_str.to_string(),
-                memo_str.to_string(),
-                format!("{:.2}", total_amount),
-                format!("{}", entry_count),
-            ];
+    let rows = transactions.iter().enumerate().map(|(idx, tx)| {
+        let total_amount: f64 = app
+            .ledger
+            .entry
+            .iter()
+            .filter(|e| e.tranid == tx.id)
+            .map(|e| e.amount)
+            .sum();
 
-            let mut row = Row::new(cells);
-            if idx == selected_idx {
-                row = row.style(Style::default().add_modifier(Modifier::REVERSED));
-            }
-            row
-        });
+        let entry_count = app
+            .ledger
+            .entry
+            .iter()
+            .filter(|e| e.tranid == tx.id)
+            .count();
+
+        let payee_str = tx.receiver.as_deref().unwrap_or("-");
+        let memo_str = tx.desc.as_deref().unwrap_or("-");
+
+        let cells = vec![
+            format!("{}", tx.occur_date),
+            payee_str.to_string(),
+            memo_str.to_string(),
+            format!("{:.2}", total_amount),
+            format!("{}", entry_count),
+        ];
+
+        let mut row = Row::new(cells);
+        if idx == selected_idx {
+            row = row.style(Style::default().add_modifier(Modifier::REVERSED));
+        }
+        row
+    });
 
     let widths = [
         Constraint::Length(12),
@@ -870,17 +899,12 @@ fn draw_transactions(f: &mut Frame<'_>, area: Rect, app: &App) {
             Row::new(vec!["Date", "Payee", "Memo", "Amount", "Entries"])
                 .style(Style::default().add_modifier(Modifier::BOLD)),
         )
-        .block(
-            Block::default()
-                .title("Transactions")
-                .borders(Borders::ALL),
-        );
+        .block(Block::default().title("Transactions").borders(Borders::ALL));
 
     f.render_widget(table, area);
 }
 
 fn draw_account_stats(f: &mut Frame<'_>, area: Rect, app: &App) {
-
     let timephase = (app.start_month, app.end_month);
     let trend = app
         .ledger
@@ -890,7 +914,7 @@ fn draw_account_stats(f: &mut Frame<'_>, area: Rect, app: &App) {
 
     let mut data: Vec<(String, f64, f64, f64, f64)> = Vec::new();
     for i in 0..trend.axis.len() {
-        let name = trend.axis[i].clone(); 
+        let name = trend.axis[i].clone();
         let inc = trend.income[i];
         let out = trend.outcome[i];
         let net = trend.summary[i];
@@ -996,19 +1020,14 @@ fn draw_trends(f: &mut Frame<'_>, area: Rect, app: &App) {
 fn draw_reconcile(f: &mut Frame<'_>, area: Rect, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(5),
-            Constraint::Min(0),
-        ])
+        .constraints([Constraint::Length(5), Constraint::Min(0)])
         .split(area);
 
     let mut text = String::new();
     let (sy, sm) = app.start_month;
     let (ey, em) = app.end_month;
 
-    text.push_str(&format!(
-        "Time range: {sy:04}-{sm:02} ~ {ey:04}-{em:02}\n"
-    ));
+    text.push_str(&format!("Time range: {sy:04}-{sm:02} ~ {ey:04}-{em:02}\n"));
     text.push_str(&format!(
         "External balance: {}\n",
         app.reconcile_external_balance
@@ -1178,13 +1197,14 @@ fn draw_advisor(f: &mut Frame<'_>, area: Rect, app: &App) {
 
     // top: current model + instructions
     let current_model = advisor_model_name(app.advisor_model_type);
-    let mut header_text = format!("Model: {}  |  g: generate advice  |  m: change model", current_model);
+    let mut header_text = format!(
+        "Model: {}  |  g: generate advice  |  m: change model",
+        current_model
+    );
     if app.advisor_selecting_model {
         header_text.push_str("  (Selecting model: ↑/↓ choose, m or Enter confirm, Esc cancel)");
     }
-    let header_block = Block::default()
-        .title("AI Advisor")
-        .borders(Borders::ALL);
+    let header_block = Block::default().title("AI Advisor").borders(Borders::ALL);
     let header = Paragraph::new(header_text).block(header_block);
     f.render_widget(header, chunks[0]);
 
@@ -1198,23 +1218,20 @@ fn draw_advisor(f: &mut Frame<'_>, area: Rect, app: &App) {
         ];
         let mut text = String::new();
         for (idx, name) in models.iter().enumerate() {
-            let marker = if idx == app.advisor_model_choice_idx { "> " } else { "  " };
+            let marker = if idx == app.advisor_model_choice_idx {
+                "> "
+            } else {
+                "  "
+            };
             text.push_str(&format!("{}{}\n", marker, name));
         }
-        let block = Block::default()
-            .title("Select Model")
-            .borders(Borders::ALL);
+        let block = Block::default().title("Select Model").borders(Borders::ALL);
         let p = Paragraph::new(text).block(block);
         f.render_widget(p, chunks[1]);
     } else {
         // show prompt + advice if available
         let mut text = String::new();
         if !app.advisor_advice1.is_empty() || !app.advisor_advice2.is_empty() {
-            text.push_str("=== Prompt Summary (internal) ===\n");
-            if !app.advisor_prompt.is_empty() {
-                text.push_str(&app.advisor_prompt);
-                text.push_str("\n\n");
-            }
             text.push_str("=== Advice #1 ===\n");
             if !app.advisor_advice1.is_empty() {
                 text.push_str(&app.advisor_advice1);
@@ -1231,6 +1248,7 @@ fn draw_advisor(f: &mut Frame<'_>, area: Rect, app: &App) {
             }
         } else {
             text.push_str("Press 'g' to generate AI advice based on your recent spending.\n");
+            text.push_str("Note: local inference may take ~3–4 minutes on CPU (or longer). Please wait after pressing 'g'.\n");
         }
 
         let block = Block::default()
@@ -1245,10 +1263,7 @@ fn draw_advisor(f: &mut Frame<'_>, area: Rect, app: &App) {
     // bottom: simple chat history & input
     let chat_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(1),
-            Constraint::Length(3),
-        ])
+        .constraints([Constraint::Min(1), Constraint::Length(3)])
         .split(chunks[2]);
 
     let mut chat_text = String::new();
@@ -1258,6 +1273,8 @@ fn draw_advisor(f: &mut Frame<'_>, area: Rect, app: &App) {
     }
     if chat_text.is_empty() {
         chat_text.push_str("Press 'i' to ask a question (English), then Enter to send.\n");
+        chat_text.push_str("Note: After you press 'i' and send (Enter), the model runs locally,please be patient while generating...\n");
+        chat_text.push_str("If using CPU inference, it may take ~3–4 minutes or longer.\n");
     }
 
     let chat_block = Block::default()
@@ -1273,9 +1290,7 @@ fn draw_advisor(f: &mut Frame<'_>, area: Rect, app: &App) {
         input_label = "Chat (type, Enter send, Esc cancel): ".to_string();
     }
     let input_text = format!("{}{}", input_label, app.advisor_chat_input);
-    let input_block = Block::default()
-        .title("Advisor Chat")
-        .borders(Borders::ALL);
+    let input_block = Block::default().title("Advisor Chat").borders(Borders::ALL);
     let input_p = Paragraph::new(input_text).block(input_block);
     f.render_widget(input_p, chat_chunks[1]);
 }
@@ -1300,29 +1315,60 @@ fn draw_create_transaction(f: &mut Frame<'_>, area: Rect, app: &App) {
 
     let mut text = String::new();
     for (label, value, idx) in &fields {
-        let marker = if *idx == app.new_tx_field_idx { "> " } else { "  " };
+        let marker = if *idx == app.new_tx_field_idx {
+            "> "
+        } else {
+            "  "
+        };
         text.push_str(&format!("{}{}: {}\n", marker, label, value));
     }
 
-    let account_marker = if app.new_tx_field_idx == 4 { "> " } else { "  " };
-    let account_name = app.ledger.account.get(app.new_tx_account_idx)
+    let account_marker = if app.new_tx_field_idx == 4 {
+        "> "
+    } else {
+        "  "
+    };
+    let account_name = app
+        .ledger
+        .account
+        .get(app.new_tx_account_idx)
         .map(|a| a.name.clone())
         .unwrap_or_else(|| "None".to_string());
-    text.push_str(&format!("{}Account: {} (j/k to change)\n", account_marker, account_name));
+    text.push_str(&format!(
+        "{}Account: {} (j/k to change)\n",
+        account_marker, account_name
+    ));
 
-    let category_marker = if app.new_tx_field_idx == 5 { "> " } else { "  " };
+    let category_marker = if app.new_tx_field_idx == 5 {
+        "> "
+    } else {
+        "  "
+    };
     let category_name = if app.new_tx_category_idx >= app.ledger.category.len() {
         "[Create New Category]".to_string()
     } else {
-        app.ledger.category.get(app.new_tx_category_idx)
+        app.ledger
+            .category
+            .get(app.new_tx_category_idx)
             .map(|c| c.name.clone())
             .unwrap_or_else(|| "None (optional)".to_string())
     };
-    text.push_str(&format!("{}Category: {} (j/k to change, n to create new)\n", category_marker, category_name));
-    
+    text.push_str(&format!(
+        "{}Category: {} (j/k to change, n to create new)\n",
+        category_marker, category_name
+    ));
+
     // show entries list
-    let entries_marker = if app.new_tx_field_idx == 6 { "> " } else { "  " };
-    text.push_str(&format!("{}Entries: {} (a: add, x: delete, j/k: select)", entries_marker, app.new_tx_entries.len()));
+    let entries_marker = if app.new_tx_field_idx == 6 {
+        "> "
+    } else {
+        "  "
+    };
+    text.push_str(&format!(
+        "{}Entries: {} (a: add, x: delete, j/k: select)",
+        entries_marker,
+        app.new_tx_entries.len()
+    ));
 
     let block = Block::default()
         .title("Create Transaction (Enter to submit, Esc to cancel, a: add entry, x: delete entry)")
@@ -1331,28 +1377,37 @@ fn draw_create_transaction(f: &mut Frame<'_>, area: Rect, app: &App) {
     f.render_widget(p, chunks[0]);
 
     if !app.new_tx_entries.is_empty() {
-        let rows = app.new_tx_entries.iter().enumerate().map(|(idx, (acc_idx, cat_idx, amount))| {
-            let acc_name = app.ledger.account.get(*acc_idx)
-                .map(|a| a.name.clone())
-                .unwrap_or_else(|| "Unknown".to_string());
-            let cat_name = if *cat_idx >= app.ledger.category.len() {
-                "None".to_string()
-            } else {
-                app.ledger.category.get(*cat_idx)
-                    .map(|c| c.name.clone())
-                    .unwrap_or_else(|| "None".to_string())
-            };
-            let mut row = Row::new(vec![
-                format!("{}", idx + 1),
-                acc_name,
-                cat_name,
-                amount.clone(),
-            ]);
-            if idx == app.new_tx_selected_entry_idx {
-                row = row.style(Style::default().add_modifier(Modifier::REVERSED));
-            }
-            row
-        });
+        let rows =
+            app.new_tx_entries
+                .iter()
+                .enumerate()
+                .map(|(idx, (acc_idx, cat_idx, amount))| {
+                    let acc_name = app
+                        .ledger
+                        .account
+                        .get(*acc_idx)
+                        .map(|a| a.name.clone())
+                        .unwrap_or_else(|| "Unknown".to_string());
+                    let cat_name = if *cat_idx >= app.ledger.category.len() {
+                        "None".to_string()
+                    } else {
+                        app.ledger
+                            .category
+                            .get(*cat_idx)
+                            .map(|c| c.name.clone())
+                            .unwrap_or_else(|| "None".to_string())
+                    };
+                    let mut row = Row::new(vec![
+                        format!("{}", idx + 1),
+                        acc_name,
+                        cat_name,
+                        amount.clone(),
+                    ]);
+                    if idx == app.new_tx_selected_entry_idx {
+                        row = row.style(Style::default().add_modifier(Modifier::REVERSED));
+                    }
+                    row
+                });
         let widths = [
             Constraint::Length(4),
             Constraint::Length(16),
@@ -1364,24 +1419,16 @@ fn draw_create_transaction(f: &mut Frame<'_>, area: Rect, app: &App) {
                 Row::new(vec!["#", "Account", "Category", "Amount"])
                     .style(Style::default().add_modifier(Modifier::BOLD)),
             )
-            .block(
-                Block::default()
-                    .title("Entries")
-                    .borders(Borders::ALL),
-            );
+            .block(Block::default().title("Entries").borders(Borders::ALL));
         f.render_widget(table, chunks[1]);
     }
 
     if let Some(ref msg) = app.error_message {
-        let err_block = Block::default()
-            .title("Error")
-            .borders(Borders::ALL);
+        let err_block = Block::default().title("Error").borders(Borders::ALL);
         let err_p = Paragraph::new(msg.as_str()).block(err_block);
         f.render_widget(err_p, chunks[2]);
     } else if let Some(ref msg) = app.success_message {
-        let succ_block = Block::default()
-            .title("Success")
-            .borders(Borders::ALL);
+        let succ_block = Block::default().title("Success").borders(Borders::ALL);
         let succ_p = Paragraph::new(msg.as_str()).block(succ_block);
         f.render_widget(succ_p, chunks[2]);
     }
@@ -1399,7 +1446,11 @@ fn handle_key_create_account(app: &mut App, key: KeyEvent, rt: &tokio::runtime::
             app.new_account_type_idx = (app.new_account_type_idx + 1) % 4;
         }
         BackTab => {
-            app.new_account_type_idx = if app.new_account_type_idx == 0 { 3 } else { app.new_account_type_idx - 1 };
+            app.new_account_type_idx = if app.new_account_type_idx == 0 {
+                3
+            } else {
+                app.new_account_type_idx - 1
+            };
         }
         Enter => {
             app.error_message = None;
@@ -1423,36 +1474,39 @@ fn handle_key_create_account(app: &mut App, key: KeyEvent, rt: &tokio::runtime::
                 }
             }
         }
-        Backspace => {
-            match app.new_account_type_idx {
-                0 => { app.new_account_name.pop(); }
-                2 => { app.new_account_currency.pop(); }
-                3 => { app.new_account_balance.pop(); }
-                _ => {}
+        Backspace => match app.new_account_type_idx {
+            0 => {
+                app.new_account_name.pop();
             }
-        }
-        Char(c) => {
-            match app.new_account_type_idx {
-                0 => { 
-                    app.new_account_name.push(c); 
-                }
-                1 => {
-                    if c == 'j' && app.new_account_type_selection > 0 {
-                        app.new_account_type_selection -= 1;
-                    } else if c == 'k' {
-                        app.new_account_type_selection = (app.new_account_type_selection + 1) % 4;
-                    }
-                }
-                2 => {                    app.new_account_currency.push(c); 
-                }
-                3 => { 
-                    if c.is_ascii_digit() || c == '.' || c == '-' { 
-                        app.new_account_balance.push(c); 
-                    } 
-                }
-                _ => {}
+            2 => {
+                app.new_account_currency.pop();
             }
-        }
+            3 => {
+                app.new_account_balance.pop();
+            }
+            _ => {}
+        },
+        Char(c) => match app.new_account_type_idx {
+            0 => {
+                app.new_account_name.push(c);
+            }
+            1 => {
+                if c == 'j' && app.new_account_type_selection > 0 {
+                    app.new_account_type_selection -= 1;
+                } else if c == 'k' {
+                    app.new_account_type_selection = (app.new_account_type_selection + 1) % 4;
+                }
+            }
+            2 => {
+                app.new_account_currency.push(c);
+            }
+            3 => {
+                if c.is_ascii_digit() || c == '.' || c == '-' {
+                    app.new_account_balance.push(c);
+                }
+            }
+            _ => {}
+        },
         _ => {}
     }
 }
@@ -1478,35 +1532,36 @@ fn submit_new_account(app: &mut App, rt: &tokio::runtime::Runtime) -> anyhow::Re
     let balance = if app.new_account_balance.trim().is_empty() {
         None
     } else {
-        Some(app.new_account_balance.trim().parse::<f64>()
-            .map_err(|_| anyhow::anyhow!("Invalid balance (must be a number)"))?)
+        Some(
+            app.new_account_balance
+                .trim()
+                .parse::<f64>()
+                .map_err(|_| anyhow::anyhow!("Invalid balance (must be a number)"))?,
+        )
     };
 
-    rt.block_on(
-        create_cloudaccount(
-            &app.base_url,
-            &app.token,
-            &app.new_account_name.trim(),
-            &account_type,
-            currency,
-            balance,
-        )
-    )?;
+    rt.block_on(create_cloudaccount(
+        &app.base_url,
+        &app.token,
+        &app.new_account_name.trim(),
+        &account_type,
+        currency,
+        balance,
+    ))?;
     Ok(())
 }
 
 fn draw_create_account(f: &mut Frame<'_>, area: Rect, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(6),
-            Constraint::Min(0),
-        ])
+        .constraints([Constraint::Length(6), Constraint::Min(0)])
         .split(area);
 
     let account_types = vec!["Checking", "Credit", "Cash", "Other"];
-    let account_type_name = account_types.get(app.new_account_type_selection)
-        .unwrap_or(&"Checking").to_string();
+    let account_type_name = account_types
+        .get(app.new_account_type_selection)
+        .unwrap_or(&"Checking")
+        .to_string();
 
     let fields = vec![
         ("Name", &app.new_account_name, 0),
@@ -1517,7 +1572,11 @@ fn draw_create_account(f: &mut Frame<'_>, area: Rect, app: &App) {
 
     let mut text = String::new();
     for (label, value, idx) in &fields {
-        let marker = if *idx == app.new_account_type_idx { "> " } else { "  " };
+        let marker = if *idx == app.new_account_type_idx {
+            "> "
+        } else {
+            "  "
+        };
         if *idx == 1 {
             text.push_str(&format!("{}{}: {} (j/k to change)\n", marker, label, value));
         } else {
@@ -1527,10 +1586,7 @@ fn draw_create_account(f: &mut Frame<'_>, area: Rect, app: &App) {
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(6),
-            Constraint::Min(0),
-        ])
+        .constraints([Constraint::Length(6), Constraint::Min(0)])
         .split(area);
 
     let block = Block::default()
@@ -1540,15 +1596,11 @@ fn draw_create_account(f: &mut Frame<'_>, area: Rect, app: &App) {
     f.render_widget(p, chunks[0]);
 
     if let Some(ref msg) = app.error_message {
-        let err_block = Block::default()
-            .title("Error")
-            .borders(Borders::ALL);
+        let err_block = Block::default().title("Error").borders(Borders::ALL);
         let err_p = Paragraph::new(msg.as_str()).block(err_block);
         f.render_widget(err_p, chunks[1]);
     } else if let Some(ref msg) = app.success_message {
-        let succ_block = Block::default()
-            .title("Success")
-            .borders(Borders::ALL);
+        let succ_block = Block::default().title("Success").borders(Borders::ALL);
         let succ_p = Paragraph::new(msg.as_str()).block(succ_block);
         f.render_widget(succ_p, chunks[1]);
     }
@@ -1588,25 +1640,20 @@ fn handle_key_create_category(app: &mut App, key: KeyEvent, rt: &tokio::runtime:
 
 fn submit_new_category(app: &mut App, rt: &tokio::runtime::Runtime) -> anyhow::Result<()> {
     use crate::stat::sync::*;
-    
-    rt.block_on(
-        create_cloudcate(
-            &app.base_url,
-            &app.token,
-            &app.new_category_name.trim(),
-            None,
-        )
-    )?;
+
+    rt.block_on(create_cloudcate(
+        &app.base_url,
+        &app.token,
+        &app.new_category_name.trim(),
+        None,
+    ))?;
     Ok(())
 }
 
 fn draw_create_category(f: &mut Frame<'_>, area: Rect, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(5),
-            Constraint::Min(0),
-        ])
+        .constraints([Constraint::Length(5), Constraint::Min(0)])
         .split(area);
 
     let mut text = String::new();
@@ -1621,17 +1668,12 @@ fn draw_create_category(f: &mut Frame<'_>, area: Rect, app: &App) {
     f.render_widget(p, chunks[0]);
 
     if let Some(ref msg) = app.error_message {
-        let err_block = Block::default()
-            .title("Error")
-            .borders(Borders::ALL);
+        let err_block = Block::default().title("Error").borders(Borders::ALL);
         let err_p = Paragraph::new(msg.as_str()).block(err_block);
         f.render_widget(err_p, chunks[1]);
     } else if let Some(ref msg) = app.success_message {
-        let succ_block = Block::default()
-            .title("Success")
-            .borders(Borders::ALL);
+        let succ_block = Block::default().title("Success").borders(Borders::ALL);
         let succ_p = Paragraph::new(msg.as_str()).block(succ_block);
         f.render_widget(succ_p, chunks[1]);
     }
 }
-

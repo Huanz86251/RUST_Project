@@ -9,25 +9,31 @@ use stat::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let base_url = "http://127.0.0.1:8080";
-    let email = "demo@example.com";
-    let password = "demo_password_123";
+    //"https://finance-backend.bravestone-51d4c984.canadacentral.azurecontainerapps.io" for cloud
+    // "http://127.0.0.1:8080" for local
+    let base_url = std::env::var("BACKEND_BASE").unwrap_or_else(|_| {
+        "https://finance-backend.bravestone-51d4c984.canadacentral.azurecontainerapps.io"
+            .to_string()
+    });
+    let email = std::env::var("DEMO_EMAIL").unwrap_or_else(|_| "demo@example.com".to_string());
+    let password =
+        std::env::var("DEMO_PASSWORD").unwrap_or_else(|_| "demo_password_123".to_string());
 
-    let auth = match login(base_url, email, password).await {
+    let auth = match login(&base_url, &email, &password).await {
         Ok(a) => a,
         Err(_) => {
-            let _ = register(base_url, email, password).await;
-            login(base_url, email, password).await?
+            let _ = register(&base_url, &email, &password).await;
+            login(&base_url, &email, &password).await?
         }
     };
     let token = auth.token.clone();
 
-    let mut ledger = download_ledger_from_server(base_url, &token).await?;
+    let mut ledger = download_ledger_from_server(&base_url, &token).await?;
     //in real case need to remove, we keep it for demo
     let has_chequing = ledger.account.iter().any(|a| a.name == "Chequing");
     if !has_chequing {
         create_cloudaccount(
-            base_url,
+            &base_url,
             &token,
             "Chequing",
             &AccountType::Checking,
@@ -39,9 +45,9 @@ async fn main() -> Result<()> {
 
     let has_food = ledger.category.iter().any(|c| c.name == "Food");
     if !has_food {
-        create_cloudcate(base_url, &token, "Food", None).await?;
+        create_cloudcate(&base_url, &token, "Food", None).await?;
     }
-    ledger = download_ledger_from_server(base_url, &token).await?;
+    ledger = download_ledger_from_server(&base_url, &token).await?;
 
     if ledger.transaction.is_empty() {
         let acc_id = ledger
@@ -65,7 +71,7 @@ async fn main() -> Result<()> {
         };
 
         create_cloudtransaction(
-            base_url,
+            &base_url,
             &token,
             Utc::now().date_naive(),
             Some("Cafe"),
@@ -74,7 +80,7 @@ async fn main() -> Result<()> {
         )
         .await?;
 
-        ledger = download_ledger_from_server(base_url, &token).await?;
+        ledger = download_ledger_from_server(&base_url, &token).await?;
     }
     println!("running TUI...");
 
