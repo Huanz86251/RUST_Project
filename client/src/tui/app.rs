@@ -1,15 +1,18 @@
 use crate::stat::Ledger;
 use crate::stat::datatype::{Entry, UserId};
+use crate::advisor::Modeltype;
 use chrono::{Datelike, Local};
 
 #[derive(Copy, Clone, Debug)]
 pub enum Screen {
     Dashboard,
     Accounts,
+    Transactions,
     CategoryStats,
     AccountStats,
     Trends,
     Reconcile,
+    Advisor,
     Help,
 }
 
@@ -17,6 +20,10 @@ pub enum Screen {
 pub enum InputMode {
     Normal,
     EditingReconcile,
+    CreatingTransaction, 
+    CreatingCategory,
+    CreatingAccount,
+    AdvisorChat,    
 }
 
 #[derive(Clone, Debug)]
@@ -46,12 +53,44 @@ pub struct App {
     pub end_month: (i32, u32),
     pub selected_month: (i32, u32),
     pub selected_account_idx: usize,
+    pub selected_transaction_idx: usize,
     pub selected_category_stats_idx: usize,
     pub selected_account_stats_idx: usize,
     pub input_mode: InputMode,
     pub reconcile_external_balance: String,
     pub reconcile_result: Option<ReconcileView>,
     pub should_quit: bool,
+    pub base_url: String,
+    pub token: String,
+    pub needs_refresh: bool,
+    pub error_message: Option<String>,
+    pub success_message: Option<String>,
+    pub new_tx_date: String,
+    pub new_tx_payee: String,
+    pub new_tx_memo: String,
+    pub new_tx_amount: String,
+    pub new_tx_account_idx: usize,
+    pub new_tx_category_idx: usize,
+    pub new_tx_field_idx: usize,
+    pub new_category_name: String,
+    pub is_creating_new_category: bool,
+    pub new_tx_entries: Vec<(usize, usize, String)>, // (account_idx, category_idx, amount)
+    pub new_tx_selected_entry_idx: usize,
+    pub new_account_name: String,
+    pub new_account_type_idx: usize, // field index (0=name, 1=type, 2=currency, 3=balance)
+    pub new_account_type_selection: usize, // account type selection (0=Checking, 1=Credit, 2=Cash, 3=Other)
+    pub new_account_currency: String,
+    pub new_account_balance: String,
+    pub advisor_model_type: Modeltype,
+    pub advisor_model_choice_idx: usize,
+    pub advisor_selecting_model: bool,
+    pub advisor_prompt: String,
+    pub advisor_advice1: String,
+    pub advisor_advice2: String,
+    pub advisor_scroll: u16, 
+    pub advisor_chat_input: String, 
+    pub advisor_chat_history: Vec<String>, 
+    pub advisor_chat_scroll: u16,
 }
 
 fn add_months((y, m): (i32, u32), delta: i32) -> (i32, u32) {
@@ -64,7 +103,7 @@ fn add_months((y, m): (i32, u32), delta: i32) -> (i32, u32) {
 }
 
 impl App {
-    pub fn new(ledger: Ledger) -> Self {
+    pub fn new(ledger: Ledger, base_url: String, token: String) -> Self {
         let user_id = ledger
             .user
             .first()
@@ -99,28 +138,62 @@ impl App {
         Self {
             ledger,
             user_id,
+            base_url,
+            token,
             current_screen: Screen::Dashboard,
             start_month: min_ym,
             end_month: max_ym,
             selected_month: max_ym,
             selected_account_idx: 0,
+            selected_transaction_idx: 0,
             selected_category_stats_idx: 0,
             selected_account_stats_idx: 0,
             input_mode: InputMode::Normal,
             reconcile_external_balance: String::new(),
             reconcile_result: None,
             should_quit: false,
+            needs_refresh: false,
+            error_message: None,
+            success_message: None,
+            new_tx_date: String::new(),
+            new_tx_payee: String::new(),
+            new_tx_memo: String::new(),
+            new_tx_amount: String::new(),
+            new_tx_account_idx: 0,
+            new_tx_category_idx: 0,
+            new_tx_field_idx: 0,
+            new_category_name: String::new(),
+            is_creating_new_category: false,
+            new_tx_entries: Vec::new(),
+            new_tx_selected_entry_idx: 0,
+            new_account_name: String::new(),
+            new_account_type_idx: 0,
+            new_account_type_selection: 0,
+            new_account_currency: String::from("USD"),
+            new_account_balance: String::new(),
+            advisor_model_type: Modeltype::Qwen25_1_5B,
+            advisor_model_choice_idx: 1,
+            advisor_selecting_model: false,
+            advisor_prompt: String::new(),
+            advisor_advice1: String::new(),
+            advisor_advice2: String::new(),
+            advisor_scroll: 0,
+            advisor_chat_input: String::new(),
+            advisor_chat_history: Vec::new(),
+            advisor_chat_scroll: 0,
         }
     }
 
     pub fn next_screen(&mut self) {
         self.current_screen = match self.current_screen {
             Screen::Dashboard => Screen::Accounts,
-            Screen::Accounts => Screen::CategoryStats,
+            Screen::Accounts => Screen::Transactions,
+            Screen::Transactions => Screen::CategoryStats,
             Screen::CategoryStats => Screen::AccountStats,
             Screen::AccountStats => Screen::Trends,
             Screen::Trends => Screen::Reconcile,
-            Screen::Reconcile => Screen::Help,
+            Screen::Reconcile => Screen::Advisor,
+            Screen::Advisor => Screen::Help,
             Screen::Help => Screen::Dashboard,
         };
     }
@@ -129,11 +202,13 @@ impl App {
         self.current_screen = match self.current_screen {
             Screen::Dashboard => Screen::Help,
             Screen::Accounts => Screen::Dashboard,
-            Screen::CategoryStats => Screen::Accounts,
+            Screen::Transactions => Screen::Accounts,
+            Screen::CategoryStats => Screen::Transactions,
             Screen::AccountStats => Screen::CategoryStats,
             Screen::Trends => Screen::AccountStats,
             Screen::Reconcile => Screen::Trends,
-            Screen::Help => Screen::Reconcile,
+            Screen::Advisor => Screen::Reconcile,
+            Screen::Help => Screen::Advisor,
         };
     }
 

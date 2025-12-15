@@ -75,45 +75,50 @@ async fn main() -> Result<()> {
 
         ledger = download_ledger_from_server(base_url, &token).await?;
     }
+    // println!("loading model...");
+    // let mut model = Model::new_with(Modeltype::Qwen25_3B)?;
+    // let modelcfg = Generationcfg::default();
+    // let samples = model.generate_advicepair(&ledger, uid, 3, 3, &modelcfg)?;
+    // println!("--- Prompt ---\n{}\n", samples[0]);
+    // println!("--- Advice #1 ---\n{}\n", samples[1]);
+    // println!("--- Advice #2 ---\n{}\n", samples[2]);
+    // println!("\n=== Before upload ===");
+    // let before = model
+    //     .answer_withtool(
+    //         "How much did I spend in 2025-12?",
+    //         base_url,
+    //         &token,
+    //         &mut ledger,
+    //         uid,
+    //         &modelcfg,
+    //     )
+    //     .await?;
+    // println!("{before}");
 
-    let mut model = Model::new_with(Modeltype::Qwen25_3B)?;
-    let modelcfg = Generationcfg::default();
-    let samples = model.generate_advicepair(&ledger, uid, 3, 3, &modelcfg)?;
-    println!("--- Prompt ---\n{}\n", samples[0]);
-    println!("--- Advice #1 ---\n{}\n", samples[1]);
-    println!("--- Advice #2 ---\n{}\n", samples[2]);
-    println!("\n=== Before upload ===");
-    let before = model
-        .answer_withtool(
-            "How much did I spend in 2025-12?",
-            base_url,
-            &token,
-            &mut ledger,
-            uid,
-            &modelcfg,
-        )
-        .await?;
-    println!("{before}");
+    // println!("\n=== Upload by AI ===");
+    // let upload_q = "Please record an expense of 6.66 CAD today, payee Cafe, category Food, account Chequing, memo test.";
+    // let upload_a = model
+    //     .answer_withtool(upload_q, base_url, &token, &mut ledger, uid, &modelcfg)
+    //     .await?;
+    // println!("{upload_a}");
 
-    println!("\n=== Upload by AI ===");
-    let upload_q = "Please record an expense of 6.66 CAD today, payee Cafe, category Food, account Chequing, memo test.";
-    let upload_a = model
-        .answer_withtool(upload_q, base_url, &token, &mut ledger, uid, &modelcfg)
-        .await?;
-    println!("{upload_a}");
+    // println!("\n=== After upload ===");
+    // let after = model
+    //     .answer_withtool(
+    //         "How much did I spend in 2025-12?",
+    //         base_url,
+    //         &token,
+    //         &mut ledger,
+    //         uid,
+    //         &modelcfg,
+    //     )
+    //     .await?;
+    // println!("{after}");
 
-    println!("\n=== After upload ===");
-    let after = model
-        .answer_withtool(
-            "How much did I spend in 2025-12?",
-            base_url,
-            &token,
-            &mut ledger,
-            uid,
-            &modelcfg,
-        )
-        .await?;
-    println!("{after}");
-    tui::run_tui(ledger).map_err(|e| anyhow::anyhow!("{e}"))?;
+    println!("running TUI...");
+    // new implemented - 在阻塞线程中运行 TUI，这样可以在其中创建新的运行时
+    tokio::task::spawn_blocking(move || {
+        tui::run_tui(ledger, base_url.to_string(), token.to_string())
+    }).await?.map_err(|e| anyhow::anyhow!("TUI error: {}", e))?;
     Ok(())
 }
