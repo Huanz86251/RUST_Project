@@ -82,7 +82,7 @@ cargo install sqlx-cli --no-default-features --features postgres --locked
 DATABASE_URL=postgres://finance:finance_pw@localhost:5432/finance sqlx migrate run
 
 ## Try to run cargo build
-cargo sqlx prepare
+DATABASE_URL=postgres://finance:finance_pw@localhost:5432/finance cargo sqlx prepare
 cargo build
 
 # User guide for backend server without client (Only Curl)
