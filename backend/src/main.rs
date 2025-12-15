@@ -1,24 +1,9 @@
 mod auth;
 mod services;
 mod routes;
-use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
+use sqlx::{postgres::PgPoolOptions};
 use dotenvy;
-use bigdecimal::BigDecimal;
-use std::str::FromStr;
-use chrono::NaiveDate;
-use axum::{
-    routing::{get, post},
-    http::StatusCode,
-    Json,extract::State, Router,
-};
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-use argon2::{
-    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
-    Argon2,
-};
-use rand_core::OsRng;
-use sqlx::PgPool;
+
 use crate::routes::AppState;
 // use crate::{auth, services};
 #[tokio::main]

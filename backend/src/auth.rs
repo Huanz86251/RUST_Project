@@ -1,20 +1,20 @@
 use axum::{
-    body::Body,
+
     response::Response,
     extract::{Request, Json,State},
-    http,
+
     http::{ StatusCode,header},
     // http::{Response, StatusCode,header},
     middleware::Next,
 };
-use axum::Extension;
+
 use chrono::{Duration, Utc};
 use sqlx::FromRow;
 use crate::AppState;
 // db / types
 use uuid::Uuid;
 use serde::{Deserialize, Serialize};
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, TokenData, Validation};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 // password hashing (argon2)
 use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
@@ -32,7 +32,7 @@ pub async fn register(
     let password_hash = hash_password(&payload.password)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("hash error: {e}")))?;
 
-    let res = sqlx::query(
+    let _res = sqlx::query(
         r#"INSERT INTO users (id, email, password_hash)
         VALUES ($1, $2, $3)"#)
         .bind(user_id)
