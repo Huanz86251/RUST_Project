@@ -1552,7 +1552,7 @@ fn submit_new_account(app: &mut App, rt: &tokio::runtime::Runtime) -> anyhow::Re
 }
 
 fn draw_create_account(f: &mut Frame<'_>, area: Rect, app: &App) {
-    let chunks = Layout::default()
+    let _chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(6), Constraint::Min(0)])
         .split(area);
