@@ -1,12 +1,11 @@
 use axum::{
     routing::{get, post,delete},
-    http::StatusCode,
-    Json,extract::State, Router,
+
+    Router,
     middleware::from_fn,
 };
 use crate::{auth, services};
-use sqlx::{postgres::PgPoolOptions, Pool, Postgres,PgPool};
-use dotenvy;
+use sqlx::{PgPool};
 
 pub fn app() -> axum::Router<AppState>{
     let protected = Router::<AppState>::new()

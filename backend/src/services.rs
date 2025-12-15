@@ -3,14 +3,14 @@ use crate::AppState;
 use rust_decimal::Decimal;
 use axum::{
     Extension,
-    extract::{Request, Json,State,Query, Path},
+    extract::{ Json,State,Query, Path},
     http::StatusCode,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
-use sqlx::error::ErrorKind;
+
 use sqlx::{Postgres, QueryBuilder, Transaction};
 use sqlx::types::chrono::NaiveDate;
 pub async fn root(Extension(user): Extension<AuthUser>) -> String {
@@ -130,21 +130,7 @@ pub async fn create_account(
     Ok(acc)
 }
 
-#[derive(Debug, Deserialize)]
-pub struct AccountQuery {
-    pub limit: Option<i64>,
-    pub offset: Option<i64>,
 
-    #[serde(rename = "type")]
-    pub account_type: Option<String>, // checking/cash/credit/other
-    pub currency: Option<String>,      // CAD
-
-    pub query: Option<String>,         // 搜索 name
-    pub sort: Option<String>,          // name/created_at
-    pub order: Option<String>,         // asc/desc
-
-    pub include_balance: Option<bool>, // true/false
-}
 pub async fn list_accounts_handler(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -302,21 +288,6 @@ pub async fn create_category_handler(
 }
 
 
-#[derive(Debug, Deserialize)]
-pub struct CategoryQuery {
-    pub limit: Option<i64>,
-    pub offset: Option<i64>,
-
-    #[serde(rename = "type")]
-    pub account_type: Option<String>, // checking/cash/credit/other
-    pub currency: Option<String>,      // CAD
-
-    pub query: Option<String>,         // 搜索 name
-    pub sort: Option<String>,          // name/created_at
-    pub order: Option<String>,         // asc/desc
-
-    pub include_balance: Option<bool>, // true/false
-}
 pub async fn create_category(
     pool: &PgPool,
     user_id: Uuid,
@@ -736,7 +707,21 @@ impl From<CategoriesRow> for CategoriesDto {
     }
 }
 
+#[derive(Debug, Deserialize)]
+pub struct AccountQuery {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
 
+    #[serde(rename = "type")]
+    pub account_type: Option<String>, // checking/cash/credit/other
+    pub currency: Option<String>,      // CAD
+
+    pub query: Option<String>,         // search string
+    pub sort: Option<String>,          // name/created_at
+    pub order: Option<String>,         // asc/desc
+
+    pub include_balance: Option<bool>, // true/false
+}
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct AccountRow {
@@ -748,6 +733,7 @@ pub struct AccountRow {
     pub opening_balance: Decimal, // NUMERIC(14,2)
     pub created_at: DateTime<Utc>, // TIMESTAMPTZ
 }
+
 #[derive(serde::Deserialize)]
 pub struct CreateAccountReq {
     pub name: String,

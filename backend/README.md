@@ -1,13 +1,17 @@
 # Backend Reproducibility Guide for developer
 ## First clone the git repo, if already cloned, enter backend directionary
+
 git clone https://github.com/Huanz86251/RUST_Project.git
+
 cd RUST_Project/backend
 ## Then check Rustc version, require at least 1.88
 ## If not, try to update the rustc.
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
 source "$HOME/.cargo/env"
 
 rustup update stable
+
 rustup default stable
 
 rustc --version
@@ -16,36 +20,47 @@ rustc --version
 ### If already downloaded, pls verify
 
 docker --version
+
 docker compose version
+
 sudo docker run --rm hello-world
+
 #### macOS Sonoma
+
 brew install --cask docker
 
 #### Ubuntu system
+
 sudo apt-get remove -y docker.io docker-doc docker-compose podman-docker containerd runc || true
 
 sudo apt-get update
+
 sudo apt-get install -y ca-certificates curl gnupg
 
 sudo install -m 0755 -d /etc/apt/keyrings
+
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
 sudo chmod a+r /etc/apt/keyrings/docker.gpg
 
 echo \
   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-  https://download.docker.com/linux/ubuntu \
-  $(. /etc/os-release && echo ${UBUNTU_CODENAME:-$VERSION_CODENAME}) stable" | \
+  https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" | \
   sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
   sudo apt-get update
   sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 docker --version
+
 docker compose version
 
 #### Debian system
+
 sudo install -m 0755 -d /etc/apt/keyrings
+
 sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+
 sudo chmod a+r /etc/apt/keyrings/docker.asc
 
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
@@ -54,45 +69,64 @@ $(. /etc/os-release && echo $VERSION_CODENAME) stable" | \
 sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
 sudo apt-get update
+
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 ### Check if Docker daemon is running
+
 sudo systemctl status docker --no-pager
+
 ### If not, run
+
 sudo systemctl enable --now docker
+
 ### Add user into docker group
+
 sudo usermod -aG docker $USER
+
 newgrp docker
+
 ### Now run the docker compose to build the DB.
+
 docker compose up -d
 
 ### it should show STATUS healthy
+
 sudo docker compose ps
 
 ## If there's no .env file or you want to create your own .env, run these cmd
+
 JWT_SECRET="$(openssl rand -hex 32)" && cat > .env <<EOF
 DATABASE_URL=postgres://finance:finance_pw@localhost:5432/finance
 JWT_SECRET=$JWT_SECRET
 EOF
 
 ## Install sqlx
+
 cargo install sqlx-cli --no-default-features --features postgres --locked
 
 ## Build the Sql using SQLx migrations
+
 DATABASE_URL=postgres://finance:finance_pw@localhost:5432/finance sqlx migrate run
 
 ## Try to run cargo build
-cargo sqlx prepare
+
+DATABASE_URL=postgres://finance:finance_pw@localhost:5432/finance cargo sqlx prepare
+
 cargo build
 
 # User guide for backend server without client (Only Curl)
 
 ## For developer who want to try server with local database:
+
 cargo run --release
+
 BASE=http://localhost:8080
 
 ## For users  or developer that want to try Database stored in a HTTPS back-end server:
+
 BASE=https://finance-backend.bravestone-51d4c984.canadacentral.azurecontainerapps.io
+
 ### And you don't need to cargo run.
 
 ## 1. Register
@@ -104,6 +138,7 @@ curl -i -X POST "$BASE/auth/register" \
   }'
 
 ## 2. Login to get JWT – POST /auth/login
+
 ## 2.1 Quickly inspect the response
 curl -i -X POST "$BASE/auth/login" \
   -H "Content-Type: application/json" \
@@ -111,6 +146,7 @@ curl -i -X POST "$BASE/auth/login" \
     "email": "test1@example.com",
     "password": "TestPass123!"
   }'
+  
 ## 2.2 Use jq to extract the token
 TOKEN=$(curl -sS -X POST "$BASE/auth/login" \
   -H "Content-Type: application/json" \
@@ -131,6 +167,7 @@ curl -i "$BASE/" \
 Hello, user_id=xxxx-...
 
 ## 4. Accounts – /accounts
+
 ## 4.1 Create an account – POST /accounts
 curl -i -X POST "$BASE/accounts" \
   -H "Content-Type: application/json" \
@@ -157,6 +194,7 @@ curl -i "$BASE/accounts?type=checking&currency=CAD&include_balance=true" \
   -H "Authorization: Bearer $TOKEN"
 
 ## 5. Categories – /categories
+
 ## 5.1 Create a top-level category – POST /categories
 curl -i -X POST "$BASE/categories" \
   -H "Content-Type: application/json" \
