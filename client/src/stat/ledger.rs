@@ -2,8 +2,8 @@ use super::datatype::*;
 use crate::stat::datatype::{AccountId, CategoryId, UserId};
 use chrono::*;
 use std::collections::{HashMap, HashSet};
-use uuid::Uuid;
-fn expand_month_range(mut sy: i32, mut sm: u32, ey: i32, em: u32) -> Vec<(i32, u32)> {
+///expand month list
+pub fn expand_month_range(mut sy: i32, mut sm: u32, ey: i32, em: u32) -> Vec<(i32, u32)> {
     let mut result = Vec::new();
 
     while sy < ey || (sy == ey && sm <= em) {
@@ -159,6 +159,7 @@ impl<K: Clone> Trend<K> {
         };
     }
 }
+///last n month time phase range
 pub fn timephase_fromnow(n: u32) -> ((i32, u32), (i32, u32)) {
     let now = Utc::now().date_naive();
     let now_y = now.year();
@@ -197,7 +198,7 @@ impl Ledger {
                 .unwrap_or(0.0),
         }
     }
-
+    ///category id → name
     pub fn trans_categoryid2name(&self, catid: CategoryId) -> String {
         for i in &self.category {
             if i.id == catid {
@@ -208,6 +209,7 @@ impl Ledger {
         txt.push_str(&catid.to_string());
         return txt;
     }
+    ///account id → name
     pub fn trans_accountid2name(&self, accid: AccountId) -> String {
         for i in &self.account {
             if i.id == accid {
@@ -475,6 +477,7 @@ impl Ledger {
             summary: sum,
         };
     }
+    ///rank topk
     fn rank_trend<K: Clone>(trend: Trend<K>, purpose: Purpose, top_k: usize) -> Trend<K> {
         let len = trend.axis.len();
         if len == 0 || top_k == 0 {
@@ -549,6 +552,7 @@ impl Ledger {
         let purpose = Purpose::trans(onlyspend);
         Self::rank_trend(temp, purpose, top_k)
     }
+    ///find entry closest to diff
     fn reconcile_supicous_entry(
         &self,
         userid: UserId,
@@ -601,6 +605,7 @@ impl Ledger {
         }
         return result;
     }
+    ///compare internal vs external
     pub fn reconcile(
         &self,
         userid: UserId,
@@ -636,115 +641,6 @@ impl Ledger {
                 difference: diff,
                 suspicous_entry: cad,
             };
-        }
-    }
-    pub fn build_demo_ledger() -> Ledger {
-        let userid = Uuid::new_v4();
-        let now = Utc::now();
-
-        let user = User {
-            id: userid,
-            email: "demo@example.com".to_string(),
-            create_date: now,
-        };
-
-        let acc_checking = Account {
-            id: 1,
-            userid,
-            name: "Chequing".to_string(),
-            account_type: AccountType::Checking,
-            currency: Currency::new("CAD"),
-            balance: 1000.0,
-            create_date: now,
-        };
-
-        let acc_credit = Account {
-            id: 2,
-            userid,
-            name: "Visa".to_string(),
-            account_type: AccountType::Credit,
-            currency: Currency::new("CAD"),
-            balance: 0.0,
-            create_date: now,
-        };
-
-        let cat_food = Category {
-            id: 1,
-            userid,
-            name: "Food".to_string(),
-            parentid: None,
-        };
-
-        let cat_rent = Category {
-            id: 2,
-            userid,
-            name: "Rent".to_string(),
-            parentid: None,
-        };
-
-        let tx1 = Transaction {
-            id: Uuid::new_v4(),
-            userid,
-            occur_date: NaiveDate::from_ymd_opt(2025, 12, 1).unwrap(),
-            receiver: Some("Supermarket".to_string()),
-            desc: Some("Groceries".to_string()),
-            create_date: now,
-        };
-
-        let tx2 = Transaction {
-            id: Uuid::new_v4(),
-            userid,
-            occur_date: NaiveDate::from_ymd_opt(2025, 12, 2).unwrap(),
-            receiver: Some("Landlord".to_string()),
-            desc: Some("December rent".to_string()),
-            create_date: now,
-        };
-
-        let tx3 = Transaction {
-            id: Uuid::new_v4(),
-            userid,
-            occur_date: NaiveDate::from_ymd_opt(2025, 12, 3).unwrap(),
-            receiver: Some("Cafe".to_string()),
-            desc: None,
-            create_date: now,
-        };
-
-        let e1 = Entry {
-            id: 1,
-            userid,
-            tranid: tx1.id,
-            accountid: acc_checking.id,
-            categoryid: Some(cat_food.id),
-            amount: -50.0,
-            desc: None,
-        };
-
-        let e2 = Entry {
-            id: 2,
-            userid,
-            tranid: tx2.id,
-            accountid: acc_checking.id,
-            categoryid: Some(cat_rent.id),
-            amount: -700.0,
-            desc: None,
-        };
-
-        let e3 = Entry {
-            id: 3,
-            userid,
-            tranid: tx3.id,
-            accountid: acc_credit.id,
-            categoryid: Some(cat_food.id),
-            amount: -10.0,
-            desc: Some("Latte".to_string()),
-        };
-
-        Ledger {
-            user: vec![user],
-            account: vec![acc_checking, acc_credit],
-            category: vec![cat_food, cat_rent],
-            transaction: vec![tx1, tx2, tx3],
-            entry: vec![e1, e2, e3],
         }
     }
 }

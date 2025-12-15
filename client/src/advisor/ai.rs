@@ -16,6 +16,7 @@ use serde::Deserialize;
 use serde_json::Value as JsonValue;
 use std::path::PathBuf;
 use tokenizers::Tokenizer;
+//function call template, add new function need to change it
 pub const TOOL: &str = r#"
 {"name":"month_summary",
  "description":"Get totals for a specific month, or for a range of months, over all accounts and categories. Use this whenever the user asks how much they spent, earned, or the net total over one or more months.",
@@ -147,7 +148,7 @@ pub const TOOL: &str = r#"
       "required":["account","direction","amount"]
     }}
 "#;
-
+//support 3 device
 fn _device() -> Device {
     #[cfg(feature = "cuda")]
     {
@@ -179,6 +180,8 @@ pub struct Toolcall {
     pub name: String,
     pub arguments: JsonValue,
 }
+
+//extract function from model output,<tool_call> works for Qwen, if change to other type model may need to change
 fn extract_fun(raw: &str) -> Option<Toolcall> {
     let start = "<tool_call>";
     let end = "</tool_call>";
@@ -201,7 +204,7 @@ fn extract_fun(raw: &str) -> Option<Toolcall> {
     let mut de = serde_json::Deserializer::from_str(json_raw);
     Toolcall::deserialize(&mut de).ok()
 }
-
+//function for LLM
 fn tool_month_summary(ledger: &Ledger, userid: UserId, args: &JsonValue) -> String {
     let s_y = match args.get("year") {
         Some(v) => match v.as_i64() {
@@ -281,6 +284,7 @@ fn tool_month_summary(ledger: &Ledger, userid: UserId, args: &JsonValue) -> Stri
         _ => "unknown kind type, must be: spend / net / income".to_string(),
     }
 }
+//function for LLM
 fn tool_recent_top_category(ledger: &Ledger, userid: UserId, args: &JsonValue) -> String {
     let m = match args.get("months") {
         Some(v) => match v.as_i64() {
@@ -309,6 +313,7 @@ fn tool_recent_top_category(ledger: &Ledger, userid: UserId, args: &JsonValue) -
     }
     out
 }
+//function for LLM
 fn tool_recent_top_account(ledger: &Ledger, userid: UserId, args: &JsonValue) -> String {
     let m = match args.get("months") {
         Some(v) => match v.as_i64() {
@@ -337,6 +342,7 @@ fn tool_recent_top_account(ledger: &Ledger, userid: UserId, args: &JsonValue) ->
     }
     out
 }
+//function for LLM upload transaction
 async fn tool_upload_transaction(
     base_url: &str,
     token: &str,
@@ -474,6 +480,7 @@ async fn tool_upload_transaction(
         Err(_) => "given parameter wrong, function give error.".to_string(),
     }
 }
+//function for LLM
 fn tool_recent_trend(ledger: &Ledger, userid: UserId, args: &JsonValue) -> String {
     let mon = match args.get("months") {
         Some(v) => match v.as_i64() {
@@ -504,6 +511,7 @@ fn tool_recent_trend(ledger: &Ledger, userid: UserId, args: &JsonValue) -> Strin
     }
     s
 }
+//if add new function add here and update pub const TOOL, but don't add too much funtion to increase pressure for memory
 async fn run_toolcall(
     base_url: &str,
     token: &str,
@@ -524,6 +532,7 @@ async fn run_toolcall(
     };
     format!("called function: {name} , return: {body}")
 }
+//model support type
 #[derive(Debug, Clone, Copy)]
 pub enum Modeltype {
     Qwen25_1_5B,
@@ -541,6 +550,7 @@ impl Modeltype {
             Modeltype::Qwen25_3B => "Qwen/Qwen2.5-3B-Instruct",
         }
     }
+    //need to go to HF webset to check
     fn gguf_address(self) -> (&'static str, &'static str) {
         match self {
             Modeltype::Qwen25_7B => (
@@ -561,6 +571,7 @@ impl Modeltype {
             ),
         }
     }
+    //if change to different band model, they may have diff eso token
     fn eos(self) -> &'static str {
         match self {
             Modeltype::Qwen25_7B
@@ -569,6 +580,9 @@ impl Modeltype {
             | Modeltype::Qwen25_0_5B => "<|im_end|>",
         }
     }
+    //this template is for Qwen, if switch to other model, need to check toknizer config
+    //   Qwen chat_template: "{%- if tools %}\n    {{- '<|im_start|>system\\n' }}\n    {%- if messages[0]['role'] == 'system' %}\n        {{- messages[0]['content'] }}\n    {%- else %}\n        {{- 'You are a helpful assistant.' }}\n    {%- endif %}\n    {{- \"\\n\\n# Tools\\n\\nYou may call one or more functions to assist with the user query.\\n\\nYou are provided with function signatures within <tools></tools> XML tags:\\n<tools>\" }}\n    {%- for tool in tools %}\n        {{- \"\\n\" }}\n        {{- tool | tojson }}\n    {%- endfor %}\n    {{- \"\\n</tools>\\n\\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\\n<tool_call>\\n{\\\"name\\\": <function-name>, \\\"arguments\\\": <args-json-object>}\\n</tool_call><|im_end|>\\n\" }}\n{%- else %}\n    {%- if messages[0]['role'] == 'system' %}\n        {{- '<|im_start|>system\\n' + messages[0]['content'] + '<|im_end|>\\n' }}\n    {%- else %}\n        {{- '<|im_start|>system\\nYou are a helpful assistant.<|im_end|>\\n' }}\n    {%- endif %}\n{%- endif %}\n{%- for message in messages %}\n    {%- if (message.role == \"user\") or (message.role == \"system\" and not loop.first) or (message.role == \"assistant\" and not message.tool_calls) %}\n        {{- '<|im_start|>' + message.role + '\\n' + message.content + '<|im_end|>' + '\\n' }}\n    {%- elif message.role == \"assistant\" %}\n        {{- '<|im_start|>' + message.role }}\n        {%- if message.content %}\n            {{- '\\n' + message.content }}\n        {%- endif %}\n        {%- for tool_call in message.tool_calls %}\n            {%- if tool_call.function is defined %}\n                {%- set tool_call = tool_call.function %}\n            {%- endif %}\n            {{- '\\n<tool_call>\\n{\"name\": \"' }}\n            {{- tool_call.name }}\n            {{- '\", \"arguments\": ' }}\n            {{- tool_call.arguments | tojson }}\n            {{- '}\\n</tool_call>' }}\n        {%- endfor %}\n        {{- '<|im_end|>\\n' }}\n    {%- elif message.role == \"tool\" %}\n        {%- if (loop.index0 == 0) or (messages[loop.index0 - 1].role != \"tool\") %}\n            {{- '<|im_start|>user' }}\n        {%- endif %}\n        {{- '\\n<tool_response>\\n' }}\n        {{- message.content }}\n        {{- '\\n</tool_response>' }}\n        {%- if loop.last or (messages[loop.index0 + 1].role != \"tool\") %}\n            {{- '<|im_end|>\\n' }}\n        {%- endif %}\n    {%- endif %}\n{%- endfor %}\n{%- if add_generation_prompt %}\n    {{- '<|im_start|>assistant\\n' }}\n{%- endif %}\n",
+
     fn apply_chat_template(&self, user: &str) -> String {
         let mut template = String::new();
         template.push_str("<|im_start|>system\nYou are a personal finance assistant.<|im_end|>\n<|im_start|>user\n");
@@ -576,6 +590,7 @@ impl Modeltype {
         template.push_str("<|im_end|>\n<|im_start|>assistant\n");
         template
     }
+    //this template is for Qwen, if switch to other model, need to check toknizer config
     fn apply_into_tool_chat_template(&self, user: &str, functionintro: &str) -> String {
         let mut template = String::new();
         template.push_str("<|im_start|>system\nYou are a personal finance assistant.");
@@ -587,6 +602,7 @@ impl Modeltype {
         template.push_str("Output ONLY one tool call, no extra text.Tool arguments must match the schema exactly (use integers for year/month/months) \n<|im_end|>\n<|im_start|>assistant\n<tool_call>\n");
         template
     }
+    //this template is for Qwen, if switch to other model, need to check toknizer config
     fn apply_tool_out_chat_template(&self, premessage: &str, functionresult: &str) -> String {
         let mut template = String::new();
         template.push_str(premessage);
@@ -604,6 +620,7 @@ impl Modeltype {
 }
 #[derive(Debug, Clone)]
 pub struct Localmodel {
+    #[allow(dead_code)]
     pub name: String,
     pub tokenizer: PathBuf,
     pub gguf: PathBuf,
@@ -626,6 +643,7 @@ impl Default for Generationcfg {
     }
 }
 pub struct Model {
+    #[allow(dead_code)]
     pub localfile: Localmodel,
     pub tokenizer: Tokenizer,
     pub weight: Qwen2,
@@ -633,6 +651,7 @@ pub struct Model {
     pub name: Modeltype,
 }
 impl Model {
+    ///if no local file, will download model. normally 7B-physical 3.81GB storage,0.5B-physical 650MB storage,3B-physical 2.1GB storage,1.5B-physical 1.46GB storage
     pub fn checklocal(model_type: Modeltype) -> Result<Localmodel> {
         let api = match Api::new() {
             Ok(i) => i,
@@ -686,9 +705,12 @@ impl Model {
             name: model_type,
         })
     }
+    ///defult new
+    #[allow(dead_code)]
     pub fn new() -> Result<Self> {
         Self::new_with(Modeltype::Qwen25_1_5B)
     }
+    ///this one will remove eso from output, so in function call or others, normally don't use eso as end position, different model may have different implementation, check https://github.com/huggingface/candle/tree/main/candle-examples/examples
     pub fn generation_core(&mut self, content: &str, cfg: &Generationcfg) -> Result<String> {
         let txt_tok = self.tokenizer.encode(content, true).unwrap();
         let mut tok = txt_tok.get_ids().to_vec();
@@ -731,12 +753,13 @@ impl Model {
         let output = self.tokenizer.decode(&out_tok, true).unwrap();
         Ok(output)
     }
+    ///chat template+generation
     pub fn generation(&mut self, content: &str, cfg: &Generationcfg) -> Result<String> {
         let txt = self.name.apply_chat_template(content);
 
         self.generation_core(&txt, cfg)
     }
-
+    ///ai base on this give advice
     pub fn build_prompt(
         &self,
         ledger: &Ledger,
@@ -809,6 +832,7 @@ Focus on categories and behaviours, not on exact amounts.\n",
         result.push(cad2);
         return Ok(result);
     }
+    ///agent chain two round, user question-> ai choose function -> function output -> ai return, in CPU mod, it takes really long time, 0.5B 1.5B modle may make mistake, sugguest use 3,7B with cuda or metal
     pub async fn answer_withtool(
         &mut self,
         content: &str,

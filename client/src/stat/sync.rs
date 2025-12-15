@@ -5,14 +5,8 @@ use reqwest::Client;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
-use serde_json;
-use std::{
-    fs::File,
-    io::{BufReader, BufWriter},
-    path::Path,
-};
 use uuid::Uuid;
-
+//funtions trans from local to cloud style or cloud to local style
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Clouduser {
     pub id: Uuid,
@@ -217,7 +211,7 @@ impl From<Cloudledger> for Ledger {
         }
     }
 }
-
+///GET full ledger
 pub async fn download_ledger_from_server(base_url: &str, token: &str) -> Result<Ledger> {
     let client = Client::new();
     let url = format!("{}/ledger", base_url.trim_end_matches('/'));
@@ -260,6 +254,7 @@ pub struct Transreq {
     pub occurred_at: NaiveDate,
     pub entries: Vec<Entryreq>,
 }
+///base url+path
 fn api_url(base_url: &str, path: &str) -> String {
     format!(
         "{}/{}",
@@ -300,6 +295,7 @@ pub async fn create_cloudaccount(
         .error_for_status()?;
     Ok(resp.json::<Cloudaccount>().await?)
 }
+
 pub async fn create_cloudcate(
     base_url: &str,
     token: &str,
@@ -321,7 +317,6 @@ pub async fn create_cloudcate(
         .error_for_status()?;
     Ok(resp.json::<Cloudcategory>().await?)
 }
-
 pub async fn create_cloudtransaction(
     base_url: &str,
     token: &str,
@@ -366,6 +361,7 @@ pub async fn delete_transaction_on_server(base_url: &str, token: &str, tx_id: Uu
         .error_for_status()?;
     Ok(())
 }
+#[allow(dead_code)]
 pub async fn delete_entry_on_server(base_url: &str, token: &str, entry_id: i64) -> Result<()> {
     let client = Client::new();
     let url = api_url(base_url, &format!("/entries/{entry_id}"));
@@ -377,6 +373,7 @@ pub async fn delete_entry_on_server(base_url: &str, token: &str, entry_id: i64) 
         .error_for_status()?;
     Ok(())
 }
+#[allow(dead_code)]
 pub async fn delete_category_on_server(
     base_url: &str,
     token: &str,
@@ -392,6 +389,7 @@ pub async fn delete_category_on_server(
         .error_for_status()?;
     Ok(())
 }
+#[allow(dead_code)]
 pub async fn delete_account_on_server(base_url: &str, token: &str, account_id: i64) -> Result<()> {
     let client = Client::new();
     let url = api_url(base_url, &format!("/accounts/{account_id}"));
@@ -414,7 +412,6 @@ pub struct Loginget {
     pub token: String,
     pub user_id: Uuid,
 }
-
 pub async fn login(base_url: &str, email: &str, password: &str) -> Result<Loginget> {
     let client = Client::new();
     let url = api_url(base_url, "/auth/login");
@@ -440,9 +437,9 @@ struct Registreq {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Registerget {
+    #[allow(dead_code)]
     pub user_id: Uuid,
 }
-
 pub async fn register(base_url: &str, email: &str, password: &str) -> Result<Registerget> {
     let client = Client::new();
     let url = api_url(base_url, "/auth/register");

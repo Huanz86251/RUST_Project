@@ -14,7 +14,20 @@ cargo run
 
 # start TUI client
 cd ../client
-cargo run --bin client
+cargo run --release --bin client
+```
+## Optional: GPU Acceleration (CUDA / Metal)
+The AI Advisor uses local LLM inference (Candle + GGUF).
+- By default cargo run, it runs on CPU, which can be slow, if has to run on CPU, please degrade model size to 1.5B or 0.5B.
+- You can enable GPU acceleration via Cargo features:
+
+### cuda-NVIDIA GPU:
+```bash
+cargo run --release --bin client --features cuda
+```
+### metal-macOS GPU
+```bash
+cargo run --release --bin client --features metal
 ```
 
 ## Screens & Navigation
@@ -86,4 +99,3 @@ AI-powered advisor that analyzes your recent spending and can answer questions /
 ## Notes
 - Footer shows context-specific shortcuts; errors/success messages appear near footer or panels.
 - Backend endpoints: see `backend/README.md`.
-

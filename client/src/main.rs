@@ -1,7 +1,6 @@
 mod advisor;
 mod stat;
 mod tui;
-use advisor::*;
 use anyhow::Result;
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -14,14 +13,17 @@ async fn main() -> Result<()> {
     let email = "demo@example.com";
     let password = "demo_password_123";
 
-    let _ = register(base_url, email, password).await;
-
-    let auth = login(base_url, email, password).await?;
+    let auth = match login(base_url, email, password).await {
+        Ok(a) => a,
+        Err(_) => {
+            let _ = register(base_url, email, password).await;
+            login(base_url, email, password).await?
+        }
+    };
     let token = auth.token.clone();
-    let uid = auth.user_id;
 
     let mut ledger = download_ledger_from_server(base_url, &token).await?;
-
+    //in real case need to remove, we keep it for demo
     let has_chequing = ledger.account.iter().any(|a| a.name == "Chequing");
     if !has_chequing {
         create_cloudaccount(
@@ -39,7 +41,6 @@ async fn main() -> Result<()> {
     if !has_food {
         create_cloudcate(base_url, &token, "Food", None).await?;
     }
-
     ledger = download_ledger_from_server(base_url, &token).await?;
 
     if ledger.transaction.is_empty() {
@@ -75,50 +76,12 @@ async fn main() -> Result<()> {
 
         ledger = download_ledger_from_server(base_url, &token).await?;
     }
-    // println!("loading model...");
-    // let mut model = Model::new_with(Modeltype::Qwen25_3B)?;
-    // let modelcfg = Generationcfg::default();
-    // let samples = model.generate_advicepair(&ledger, uid, 3, 3, &modelcfg)?;
-    // println!("--- Prompt ---\n{}\n", samples[0]);
-    // println!("--- Advice #1 ---\n{}\n", samples[1]);
-    // println!("--- Advice #2 ---\n{}\n", samples[2]);
-    // println!("\n=== Before upload ===");
-    // let before = model
-    //     .answer_withtool(
-    //         "How much did I spend in 2025-12?",
-    //         base_url,
-    //         &token,
-    //         &mut ledger,
-    //         uid,
-    //         &modelcfg,
-    //     )
-    //     .await?;
-    // println!("{before}");
-
-    // println!("\n=== Upload by AI ===");
-    // let upload_q = "Please record an expense of 6.66 CAD today, payee Cafe, category Food, account Chequing, memo test.";
-    // let upload_a = model
-    //     .answer_withtool(upload_q, base_url, &token, &mut ledger, uid, &modelcfg)
-    //     .await?;
-    // println!("{upload_a}");
-
-    // println!("\n=== After upload ===");
-    // let after = model
-    //     .answer_withtool(
-    //         "How much did I spend in 2025-12?",
-    //         base_url,
-    //         &token,
-    //         &mut ledger,
-    //         uid,
-    //         &modelcfg,
-    //     )
-    //     .await?;
-    // println!("{after}");
-
     println!("running TUI...");
-    // new implemented - 在阻塞线程中运行 TUI，这样可以在其中创建新的运行时
+
     tokio::task::spawn_blocking(move || {
         tui::run_tui(ledger, base_url.to_string(), token.to_string())
-    }).await?.map_err(|e| anyhow::anyhow!("TUI error: {}", e))?;
+    })
+    .await?
+    .map_err(|e| anyhow::anyhow!("TUI error: {}", e))?;
     Ok(())
 }
