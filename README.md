@@ -1,91 +1,61 @@
 # Project Proposal: Rust Web Crawler with Data Analysis
 ## Group Members
 
-| Role | Name | Student ID | GitHub ID |
+| Role | Name | Student ID | GitHub ID |preferred email addresses
 |------|------|-------------|-----------|
 | **Member A** | Zihao Gong | 1005036916 | [Zihao1121](https://github.com/Zihao1121) |
-| **Member B** | Shiming Zhang | 1011821129 | [Ming031121](https://github.com/Ming031121) |
+| **Member B** | Shiming Zhang | 1011821129 | [Ming031121](https://github.com/Ming031121) | shim.zhang@mail.utoronto.ca|
 | **Member C** | Zixuan Huang | 1006288376 | [Huanz86251](https://github.com/Huanz86251) |
 
 ## Motivation
-With the popularization of the Internet, today’s web is becoming complex and vast; it is difficult for users to efficiently find the information they need. Traditional crawler scripts struggle to help users find trustworthy, relevant, and up-to-date evidence on target topics. Furthermore, a major industry challenge with large language model technology is reducing model hallucinations. High-quality evidence-grounded retrieval data is key to addressing this issue, and low-quality crawler data can lead to misjudgments in large language models. We aim to develop a Rust-based crawler pipeline that integrates web crawling with the retrieval and evidence-extraction side of RAG (we will add generation if there is enough time left). This pipeline captures product information and user reviews from e-commerce platforms, cleans and deduplicates raw data, normalizes the storage of numeric facts, such as price, weight, and rating, builds a queryable semantic index, and provides answers and references to user queries in a traceable manner with URL, timestamp, and evidence sentence.  
+In daily life, everyone needs to manage multiple accounts, such as checking accounts and credit cards. Each transaction and income often has a different purpose and corresponding date. And it is difficult to use mobile banking apps or spreadsheets to achieve granular statistical analysis. At the same time, many existing personal finance management apps only record transaction history but lack reconciliation processes. If discrepancies arise between internally recorded balances and bank/credit card statement balances, it is hard for users to pinpoint the source of the problem. Furthermore, in today's LLM-driven world, apps without integrated large-scale models are a little bit outdated. And some projects that use LLM tend to use cloud-based models, with few willing to invest in implementing local deployments and inference logic for LLM.
 
-For subjective comments, we use ANN retrieval and cross-encoder re-ranking to return the most relevant product reviews and descriptions. And for specific values, we will search the database, return solid data, and generate corresponding figures, such as historical price trends. This ensures that mathematical facts are separated from language facts, preventing users and LLMs from getting mixed information.  
-
-In the Rust ecosystem, crawling and parsing scripts are relatively mature, but integrated pipelines and reusable components, from crawling to semantic indexing, evidence extraction, and re-ranking, and finally generating evidence-based answers, are still relatively scarce. Most retrieval scripts focus more on minimal vector-retrieval demos and ignore the complete pipeline of data crawling, storage, and extraction. We hope to leverage Rust's speed and safety to quickly convert web pages into searchable and traceable evidence, which may benefit a lot of people. Especially for the large language models field, Rust's high runtime speed can increase retrieval and preprocessing throughput, which effectively reduces large language models' end-to-end latency during inference. For human users, this can also reduce their search time and provide the most relevant data.
+Therefore, we aim to build a personal finance tool that utilizes local LLM and emphasizes statistics and analysis: a keyboard-friendly TUI front-end, and a back-end providing unified data storage and synchronization via HTTPS.
 
 ---
 
 ## Objective and Key Features
+### Objective 
 
-The project’s objective is to design and implement a high-performance, memory-safe and scalable web crawler that follows a data processing pipeline and presents the result through an interactive text user interface. Also, the collected and cleaned data will serve as high-quality retrieval material for future Retrieval-Augmented Generation (RAG) systems, providing structured and reliable input for LLM-based applications.  
+The project we designed and built is a personal finance tracker centred on a TUI client, LLM and a secure HTTPS backend API. The APP should help users record their income/expenses, organize them into categories and accounts (e.g., checking/credit/cash), and manage complex transactions that span multiple accounts, categories, and entries. In addition to day-to-day bookkeeping, the system supports account reconciliation and provides AI-assisted financial insights and advice.
 
-The tool’s functions include historical price visualization, forecasting potential price fluctuations, finding the most relevant reviews for individual products, cross-platform comparisons among similar items, and rating and review similarity analysis to assess product popularity and overall user satisfaction.  
+Unlike many existing Rust CLI finance tools that are either local-file-based (CSV/SQLite) or do not provide an authenticated remote service, our project delivers a full end-to-end workflow: authentication, a structured database schema, a RESTful API, a local LLM to analyze, and an ergonomic TUI for daily use. We support both a local database mode and an HTTPS back-end database mode to satisfy different security and deployment requirements. The remote mode enforces user-scoped access via authentication to ensure data isolation and safe multi-user usage. To reduce friction when handling large finance reports or unstructured information—tasks that are painful to type manually in a TUI Meanwhile, within the RUST ecosystem, we are one of the few personal finance management projects that use locally deployed quantized large-scale models. This greatly reduces the cost of using AI as users do not need to pay for AI APIs, and the agent chain invocation becomes more flexible. AI will provide two suggestions to users based on statistical data from the most recent period. We have also implemented our own LLM agent chain, which can help users directly upload partial records or directly help users analyze data without having to manually click on different functions to view the data. 
+Overall, this project fills a gap in the Rust ecosystem by offering a modern, strongly-typed, self-hostable finance tracker that goes beyond simple logging, supporting reconciliation, reporting, and AI-assisted workflows.
 
-To achieve this objective, the system incorporates several performance-oriented features.
+### Key Features
+**Secure authentication & user isolation**: Register/login with token-based authentication; all data access is scoped per user.
+*Value to objective*: ensures user data privacy and enables safe usage on a remote HTTPS service.
 
-### Asynchronous Web Crawling
-We will implement concurrent, non-blocking data collection using Rust’s async/await model and stackless coroutines to efficiently fetch data from multiple e-commerce websites. The `Tokio` runtime will manage asynchronous task scheduling, while `Reqwest` will handle HTTP requests for retrieving HTML content.  
+**Local + remote database support**: Select local or cloud back-end by configuring .env (base URL / database settings), allowing the same client to run against either environment.
+*Value to objective*: supports both offline/local development and real multi-device usage without changing code.
 
-To ensure efficient data collection and minimize waiting time, the crawler utilizes asynchronous operations implemented with stackless coroutines. This approach enables the program to handle numerous concurrent network requests without blocking, significantly accelerating the overall data retrieval process.
+**Accounts management**: Create/list/update accounts (e.g., checking/credit/cash) with opening balances and computed current balances.
+*Value to objective*: provides a reliable foundation for tracking money across real-world accounts.
 
-### Data Cleaning and Analysis Using Rust
-We will use the `Scraper` crate to parse HTML documents and extract relevant information while filtering out advertisements, scripts, and other irrelevant content. The data cleaning module will standardize formats (e.g., price strings, currency symbols), handle missing or inconsistent values, and ensure data integrity for accurate analysis.  
-
-Instead of relying on external platforms such as Azure or Python-based models, this project performs data cleaning and analysis entirely in Rust, which guarantees no null pointers, buffer overflows, or data races through its ownership and borrowing system. This design choice significantly reduces the likelihood of system crashes and enhances the overall stability and reliability of the tool. Compared to Python, which depends on a garbage collector and can suffer from runtime overhead or concurrency limitations, Rust offers deterministic performance and thread-safe parallelism. Unlike Azure’s managed cloud pipelines, Rust provides full local control over data processing with minimal dependency and latency. This design choice ensures greater efficiency, stability, and reliability across the entire data pipeline.
-
-### Language Vector Index
-After capturing and storing user reviews and product descriptions, we will load the Transformer model using `tch-rs` and put the text into the model. We will extract the model's last hidden state layer as the text vector and store it. When a user asks a question, we utilize `hnsw-rs` to perform an Approximate Nearest Neighbour (ANN) search to find the top 50 most relevant sentences. Then, we use Hugging Face to export a quantized cross-encoder model and load it with `ONNX Runtime`. The cross-encoder can perform a more fine-grained re-ranking of the top 50 candidate sentences based on the user's question.
-
-### Text User Interface
-We will develop an interactive text-based user interface (TUI) that allows users to perform various analyses directly within the terminal. This interface will be built using the `Ratatui` crate, providing an intuitive and efficient way to explore data, visualize results, and monitor the crawling and analysis process in real time.  
-
-To enhance usability and accessibility, the project employs a text-based user interface (TUI) for presenting essential information and analytical charts directly within the terminal. Compared to graphical components, the TUI uses characters and colour blocks. This lightweight interface enhances efficiency by minimizing resource usage and ensuring both human-readability and interpretability by large language models, facilitating potential future integration.
-
-### Novelty
-To make full use of Rust’s strengths, this project is designed as a complete, end-to-end data processing pipeline that supports both developers and general users. While end users may not directly perceive the benefits of Rust’s high performance and memory safety, these features are crucial for building reliable and scalable Retrieval-Augmented Generation (RAG) systems. Although the project itself does not perform text generation, it is designed to integrate seamlessly with LLM-based applications, serving as a robust foundation for future intelligent extensions. By exploring this connection, the project bridges traditional data engineering with modern AI workflows, filling a practical gap in the current Rust ecosystem.
-
----
-
-## Project Timeline
-
-### Week 1–2: Crawling and Data Cleaning
-
-**Member A**
-- Build the asynchronous crawler using `reqwest` and `tokio`.
-- Ensure `robots.txt` compliance and rate limiting.
-
-**Member B and C**
-- Parse HTML and extract structured product attributes.
-- Normalize data into a unified schema (price normalization, category standardization, etc.).
-- If cleaning proves to be a large workload, all three members will collaborate on this stage to ensure consistency and robustness.
-
-### Week 3–4: Data Analysis
-
-**Member A**
-- Implement historical price visualization and predictive modelling to forecast potential price fluctuations based on temporal trends and market behaviour.
-
-**Member B**
-- Develop a review embedding and similarity analysis module that vectorizes user reviews to identify semantically related opinions and product feedback patterns.
-
-**Member C**
-- Conduct cross-platform product comparison and rating distribution analysis to evaluate consistency in pricing, popularity, and user satisfaction across different e-commerce sources.
-
-### Week 5: Integration and Advanced Feature Development
-
-**Member A**
-- Start developing a UI interface to enhance the Ratatui interface with multiple tabs: overview, price insights, and rating/review analysis.
-- Add navigation features and CSV export.
-
-**Member B and C**
-- Finalize duplicate product detection and integrate it into the analysis layer.
-- Produce finalized analysis results and structured outputs, then coordinate closely with Member A so that these results can be displayed in the user interface.
-
-### Week 6: Testing and Final Delivery
-
-**All Members**
-- Collaboratively test all modules, optimize performance, and ensure graceful error handling.
-- Prepare documentation, sample outputs, and demonstration runs to showcase the system.
+**Categories management**: Create/list/updatedelete categories to organize expenses and income.
+*Value to objective*: Categories make transaction history searchable and enable meaningful summaries (e.g., “How much did I spend on groceries this month?”), which is essential for budgeting and reporting.
+**Transaction logging**: Users can record transactions and view history through the TUI/API, including descriptions/notes for auditability.
+*Value to objective*: enables consistent daily bookkeeping and traceable records.
 
 
+Complex Split Transactions (Multiple Entries Across Accounts/Categories)
+A single transaction can contain multiple entries (splits), allowing one real-world event to be allocated across multiple categories and/or accounts.
+*Value to objective*: matches real finance scenarios (e.g., one purchase split across categories) and keeps balances accurate.
+
+**Reconciliation**: Compare computed balances with user-entered statement balances, and if there are discrepancies, we will return the top_k most suspicious transactions.
+
+**LLM-assisted input & analysis**: The LLM can interpret the user's recent statistical data and give two advice. We will record the user's preferred choice and save it to the local folder for culture DPO training. 
+
+**LLM-agent chain**: The LLM can decide if it needs to call agents (5 agents total: Monthly spend/income summary; Recent top spending categories; Recent top spending accounts; Recent month-by-month trends; Action tool: Upload new transaction
+) based on the user’s question and analyze the output. 
+
+
+### Contributions by each team member
+**Zihao Gong (Back-end & Database)**: Implemented the HTTPS back-end service, including the overall API structure, database schema design and migrations, and core endpoints for authentication and finance operations. This member focused on ensuring data correctness and security, such as user-scoped access control, validation, and consistent handling of complex split transactions.
+**Zixuan Huang (Back-end & Database)**: Implemented the offline LLM integration and the client-side analytics core. This included running quantized Qwen2.5 models locally with Candle (tokenizer/weight loading, device selection, and generation settings), building an LLM tool-calling agent chain, and implementing the Ledger statistics layer (monthly summaries, recent trends, and top category/account ranking). In addition, developed Cloud↔Local data mappings to connect the TUI/AI workflow with the back-end service.
+**Shiming Zhang (TUI Client & System Integration)**: Designed and implemented the Ratatui-based TUI client, including the screen layout (Dashboard, Accounts, Transactions, Trends, Reconcile, Advisor, Help) and keyboard navigation. Implemented HTTP client integration in the TUI (fetching and mutating data via the back-end API), including creating/deleting transactions, creating accounts/categories, and handling error/success messages. Built the AI Advisor TUI features (model selection, advice generation, chat interface with scrolling)
+
+### Lessons learned and concluding remarks
+###Innovation
+Most student-scale finance trackers that add AI features rely on third-party APIs, while they rarely demonstrate a complete offline LLM workflow. We load quantized large models locally (Candle + GGUF), concatenate prompt word templates, control generation configuration, run the full inference loop, and maintain a lightweight tool-calling agent chain to route user questions to multiple finance analytics agents, ensuring compatibility with CPU, CUDA, and METAL. We allow users to flexibly choose different sizes of LLM (0.5B-7B) according to their own devices (a smaller model may fail for calling tools). Compared to using an API, we can better protect user privacy while reducing money cost, which serves as a practical reference for other similar small projects. 
 
