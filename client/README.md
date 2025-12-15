@@ -4,8 +4,8 @@ Command-line TUI client for the finance tracker backend. Supports full CRUD over
 
 ## Prerequisites
 - Rust toolchain
-- Backend running (default: `http://127.0.0.1:8080`)
-- Unless nesserary, you don't need to run it, the databse is already on cloud, database runs local may have compatibility issues for docker and database, to fix that please check backend/README.md. We recommend to skip local compilation of backend.
+- local backend running (default: `http://127.0.0.1:8080`) is optional, defult backend already runs on cloud
+- Unless nesserary, you don't need to run backend local, database runs local need to carefully set docker and database config to avoid compatibility issues, to fix that please check backend/README.md. We recommend to skip local compilation of backend.
 ## Run
 ```bash
 # start backend
