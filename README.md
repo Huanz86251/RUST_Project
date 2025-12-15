@@ -3,7 +3,7 @@
 
 | Role | Name | Student ID | GitHub ID |preferred email addresses
 |------|------|------------|----------|-----------------|
-| **Member A** | Zihao Gong | 1005036916 | [Zihao1121](https://github.com/Zihao1121) |
+| **Member A** | Zihao Gong | 1005036916 | [Zihao1121](https://github.com/Zihao1121) | zihao.gong@mail.utoronto.ca|
 | **Member B** | Shiming Zhang | 1011821129 | [Ming031121](https://github.com/Ming031121) | shim.zhang@mail.utoronto.ca|
 | **Member C** | Zixuan Huang | 1006288376 | [Huanz86251](https://github.com/Huanz86251) | chrim.huang@mail.utoronto.ca|
 
