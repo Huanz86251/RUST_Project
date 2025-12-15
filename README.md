@@ -2,7 +2,7 @@
 ## Group Members
 
 | Role | Name | Student ID | GitHub ID |preferred email addresses
-|------|------|-------------|-----------|
+|------|------|------------|----------|-----------------|
 | **Member A** | Zihao Gong | 1005036916 | [Zihao1121](https://github.com/Zihao1121) |
 | **Member B** | Shiming Zhang | 1011821129 | [Ming031121](https://github.com/Ming031121) | shim.zhang@mail.utoronto.ca|
 | **Member C** | Zixuan Huang | 1006288376 | [Huanz86251](https://github.com/Huanz86251) |
@@ -56,6 +56,6 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
 **Shiming Zhang (TUI Client & System Integration)**: Designed and implemented the Ratatui-based TUI client, including the screen layout (Dashboard, Accounts, Transactions, Trends, Reconcile, Advisor, Help) and keyboard navigation. Implemented HTTP client integration in the TUI (fetching and mutating data via the back-end API), including creating/deleting transactions, creating accounts/categories, and handling error/success messages. Built the AI Advisor TUI features (model selection, advice generation, chat interface with scrolling)
 
 ### Lessons learned and concluding remarks
-###Innovation
+### Innovation
 Most student-scale finance trackers that add AI features rely on third-party APIs, while they rarely demonstrate a complete offline LLM workflow. We load quantized large models locally (Candle + GGUF), concatenate prompt word templates, control generation configuration, run the full inference loop, and maintain a lightweight tool-calling agent chain to route user questions to multiple finance analytics agents, ensuring compatibility with CPU, CUDA, and METAL. We allow users to flexibly choose different sizes of LLM (0.5B-7B) according to their own devices (a smaller model may fail for calling tools). Compared to using an API, we can better protect user privacy while reducing money cost, which serves as a practical reference for other similar small projects. 
 
