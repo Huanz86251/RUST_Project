@@ -308,7 +308,8 @@ curl -i "$BASE/ledger/snapshot" \
 
   #### Prerequisites
   - Rust toolchain
-
+  - sudo apt-get update
+  - sudo apt-get install -y pkg-config libssl-dev
   #### Optional: GPU Acceleration (CUDA / Metal)
   The AI Advisor uses local LLM inference (Candle + GGUF).
   - By default cargo run, it runs on CPU, which can be slow, if has to run on CPU, please degrade model size to 1.5B or 0.5B.
