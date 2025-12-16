@@ -8,7 +8,13 @@
 | **Member C** | Zixuan Huang | 1006288376 | [Huanz86251](https://github.com/Huanz86251) | chrim.huang@mail.utoronto.ca|
 
 # Video Slide Presentation
+
 https://youtu.be/MdWqHg7cZUQ
+
+# Video Demo
+
+https://youtu.be/PqolwAENrKM
+
 ## Motivation
 In daily life, everyone needs to manage multiple accounts, such as checking accounts and credit cards. Each transaction and income often has a different purpose and corresponding date. And it is difficult to use mobile banking apps or spreadsheets to achieve granular statistical analysis. At the same time, many existing personal finance management apps only record transaction history but lack reconciliation processes. If discrepancies arise between internally recorded balances and bank/credit card statement balances, it is hard for users to pinpoint the source of the problem. Furthermore, in today's LLM-driven world, apps without integrated large-scale models are a little bit outdated. And some projects that use LLM tend to use cloud-based models, with few willing to invest in implementing local deployments and inference logic for LLM.
 
@@ -25,6 +31,10 @@ Unlike many existing Rust CLI finance tools that are either local-file-based (CS
 Overall, this project fills a gap in the Rust ecosystem by offering a modern, strongly-typed, self-hostable finance tracker that goes beyond simple logging, supporting reconciliation, reporting, and AI-assisted workflows.
 
 ### Key Features
+
+**HTTPS cloud back-end database**: All ledger data is persisted in a remote HTTPS back-end service (API + database), enabling multi-device access and persistent storage.
+*Value to objective*: provides reliable, centralized storage for financial records and supports real-world usage beyond a single machine.
+
 **Secure authentication & user isolation**: Register/login with token-based authentication; all data access is scoped per user.
 *Value to objective*: ensures user data privacy and enables safe usage on a remote HTTPS service.
 
@@ -51,6 +61,8 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
 **LLM-agent chain**: The LLM can decide if it needs to call agents (5 agents total: Monthly spend/income summary; Recent top spending categories; Recent top spending accounts; Recent month-by-month trends; Action tool: Upload new transaction
 ) based on the user’s question and analyze the output. 
 
+**financial reports**: Provide financial reporting views such as monthly income/expense/net summary, top spending categories/accounts, and month-by-month trends.
+*Value to objective*: helps users understand spending patterns, evaluate financial health.
 
 
 
@@ -58,7 +70,7 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
   
   Command-line TUI client for the finance tracker backend. Supports full CRUD over HTTP plus multi-entry transactions.
   
-  #### Screens & Navigation
+#### Screens & Navigation
   - `Tab` / `Shift+Tab`: cycle screens (Dashboard → Accounts → Transactions → CategoryStats → AccountStats → Trends → Reconcile → Advisor → Help)
   - `↑` / `↓`: move selection in lists
   - `q`: quit
@@ -66,24 +78,51 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
   - `r`: refresh data from server
   
  #### Dashboard
+ It displays total income, total outcome, and net balance for the currently focused month.
   - `←` / `→`: change focused month
-  - `[` / `]`: shift global date range
+  - `[` / `]`: shift start date range (it can change on the dashboard page, but is not relevant to dashboard data)
+  - `{` / `}`: shift end date range (it can change on the dashboard page, but is not relevant to dashboard data)
   - `n`: new transaction
   
   #### Accounts
+  It lists all user accounts.
   - `↑` / `↓`: select account
   - `n`: new transaction
   - `c`: create account
   - `d`: delete first transaction of selected account
   
   #### Transactions
+  It lists all user transactions.
   - `↑` / `↓`: select transaction
   - `n`: new transaction
   
   #### Reconcile
+  It will calculate user cash flow in a specific timeframe and verify it with external amount. If there are any differences, it will return some suspect transactions,  help the user compare internally computed balances with externally reported balances, it won't care user's original bank money, it focuses on all transactions between the time range.
   - `e`: edit external balance (type numbers), `Enter` submit, `Esc` cancel
+  - `[` / `]`: shift start date range
+  - `{` / `}`: shift end date range
+  #### Top Categories by Outcome
+  List the categories that spend the most within a given time period
+  - `[` / `]`: shift start date range
+  - `{` / `}`: shift end date range
+  #### Top Accounts by Outcome
+  List the accounts that spend the most within a given time period
+  - `[` / `]`: shift start date range
+  - `{` / `}`: shift end date range
+  #### Monthly Trends
+  Showing monthly income and expenses over a period of time
+  - `[` / `]`: shift start date range
+  - `{` / `}`: shift end date range
+  #### Create Category
+  While in Category field press `n`, type name, `Enter` submit (`Esc` cancel). Auto-refresh selects the new category.
   
-  #### Create Transaction (supports multiple entries)
+  #### Create Account (Accounts screen, press `c`)
+  Fields: Name → Type → Currency → Opening Balance
+  - `Tab` / `Shift+Tab`: switch fields
+  - Type field: `j/k` cycle (Checking/Credit/Cash/Other)
+  - `Enter`: submit, `Esc`: cancel
+
+  #### Create Transaction (supports multiple entries, can only succeed after creating an account)
   Enter with `n` (Dashboard/Accounts/Transactions). Fields in order: Date → Payee → Memo → Amount → Account → Category → Entries.
   
   - `Tab` / `Shift+Tab`: switch fields
@@ -95,16 +134,6 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
     - `j/k`: select entry
   - `Enter`: submit (requires at least one entry; if Amount not empty, it is added as an entry on submit)
   - `Esc`: cancel
-  
-  #### Create Category
-  While in Category field press `n`, type name, `Enter` submit (`Esc` cancel). Auto-refresh selects the new category.
-  
-  #### Create Account (Accounts screen, press `c`)
-  Fields: Name → Type → Currency → Opening Balance
-  - `Tab` / `Shift+Tab`: switch fields
-  - Type field: `j/k` cycle (Checking/Credit/Cash/Other)
-  - `Enter`: submit, `Esc`: cancel
-  
   #### Delete Transaction
   In Accounts screen, select account, press `d` (removes the first transaction of that account). Press `r` to refresh view.
   
@@ -132,7 +161,7 @@ BASE=http://localhost:8080
 #### For users  or developer that want to try Database stored in a HTTPS back-end server:
 BASE=https://finance-backend.bravestone-51d4c984.canadacentral.azurecontainerapps.io
 ### And you don't need to cargo run.
-
+#### Current TUI version doesn't have a good fallback if an error happens, if you find the bar frozen, please restart it.
 #### 1. Register
 curl -i -X POST "$BASE/auth/register" \
   -H "Content-Type: application/json" \
@@ -307,7 +336,7 @@ curl -i "$BASE/ledger/snapshot" \
  
 
 ## Reproducibility Guide
-
+**If you want to connect to the local database, pls change the client main.rs code line 15 from “https://finance-backend.bravestone-51d4c984.canadacentral.azurecontainerapps.io” to "http://127.0.0.1:8080"**
   #### Prerequisites
   - Rust toolchain
   sudo apt-get update
@@ -427,3 +456,6 @@ cargo build
 Through this project, we learned how to better divide tasks and collaborate, and how teammates can agree on interfaces. For example, our data analysis and TUI teams uniformly used the ledger structure as the central hub, which greatly simplified subsequent integration. Backend-client integration only required writing a mapping structure. We also learned how to call models, maintain the model's forward process, assemble templates, call agents, and build TUI within the Rust environment. The most direct takeaway was that debugging after a Rust project is completed is indeed easier, but the development process has a higher upfront development cost. This project helped us learn how to develop an end-to-end Rust project.
 ### Innovation
 Most student-scale finance trackers that add AI features rely on third-party APIs, while they rarely demonstrate a complete offline LLM workflow. We load quantized large models locally (Candle + GGUF), concatenate prompt word templates, control generation configuration, run the full inference loop, and maintain a lightweight tool-calling agent chain to route user questions to multiple finance analytics agents, ensuring compatibility with CPU, CUDA, and METAL. We allow users to flexibly choose different sizes of LLM (0.5B-7B) according to their own devices (a smaller model may fail for calling tools). Compared to using an API, we can better protect user privacy while reducing money cost, which serves as a practical reference for other similar small projects. 
+
+
+
