@@ -103,11 +103,11 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
   - `[` / `]`: shift start date range
   - `{` / `}`: shift end date range
   #### Top Categories by Outcome
-  List the categories that spend the most within a given time period
+  List top10 categories that spend the most within a given time period
   - `[` / `]`: shift start date range
   - `{` / `}`: shift end date range
   #### Top Accounts by Outcome
-  List the accounts that spend the most within a given time period
+  List top10 accounts that spend the most within a given time period
   - `[` / `]`: shift start date range
   - `{` / `}`: shift end date range
   #### Monthly Trends
