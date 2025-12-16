@@ -55,7 +55,7 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
 **LLM-agent chain**: The LLM can decide if it needs to call agents (5 agents total: Monthly spend/income summary; Recent top spending categories; Recent top spending accounts; Recent month-by-month trends; Action tool: Upload new transaction
 ) based on the user’s question and analyze the output. 
 
-**Budgeting & financial reports **: Provide financial reporting views such as monthly income/expense/net summary, top spending categories/accounts, and month-by-month trends; optionally support setting budget targets and comparing actual spending vs. budget.
+**Budgeting & financial reports**: Provide financial reporting views such as monthly income/expense/net summary, top spending categories/accounts, and month-by-month trends; optionally support setting budget targets and comparing actual spending vs. budget.
 *Value to objective*: helps users understand spending patterns, evaluate financial health, and make budgeting decisions based on clear reports.
 
 
