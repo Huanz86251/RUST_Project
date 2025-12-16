@@ -79,17 +79,17 @@ Command-line TUI client for the finance tracker backend. Supports full CRUD over
   
   #### Dashboard
   It displays total income, total outcome, and net balance for the currently focused month.
-    - Focused month (YYYY-MM format)
-    - Income: total income for the month
-    - Outcome: total expenses for the month
-    - Net: net balance (income - outcome)
+  - Focused month (YYYY-MM format)
+  - Income: total income for the month
+  - Outcome: total expenses for the month
+  - Net: net balance (income - outcome)
 
   Controls:
-    - `←` / `→`: change focused month
-    - `[` / `]`: shift minimum month of global date range (left boundary)
-    - `{` / `}` (Shift+[ / Shift+]): shift maximum month of global date range (right boundary)
-    - `n`: create new transaction
-  
+  - `←` / `→`: change focused month
+  - `[` / `]`: shift minimum month of global date range (left boundary)
+  - `{` / `}` (Shift+[ / Shift+]): shift maximum month of global date range (right boundary)
+  - `n`: create new transaction
+
   #### Accounts
   Lists all accounts with their current balances. Displays a table with:
     - ID: account identifier
