@@ -89,7 +89,16 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
   #### Reconcile
   - `e`: edit external balance (type numbers), `Enter` submit, `Esc` cancel
   
-  #### Create Transaction (supports multiple entries)
+  #### Create Category
+  While in Category field press `n`, type name, `Enter` submit (`Esc` cancel). Auto-refresh selects the new category.
+  
+  #### Create Account (Accounts screen, press `c`)
+  Fields: Name → Type → Currency → Opening Balance
+  - `Tab` / `Shift+Tab`: switch fields
+  - Type field: `j/k` cycle (Checking/Credit/Cash/Other)
+  - `Enter`: submit, `Esc`: cancel
+
+    #### Create Transaction (supports multiple entries, can only succeed after creating an account)
   Enter with `n` (Dashboard/Accounts/Transactions). Fields in order: Date → Payee → Memo → Amount → Account → Category → Entries.
   
   - `Tab` / `Shift+Tab`: switch fields
@@ -101,16 +110,6 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
     - `j/k`: select entry
   - `Enter`: submit (requires at least one entry; if Amount not empty, it is added as an entry on submit)
   - `Esc`: cancel
-  
-  #### Create Category
-  While in Category field press `n`, type name, `Enter` submit (`Esc` cancel). Auto-refresh selects the new category.
-  
-  #### Create Account (Accounts screen, press `c`)
-  Fields: Name → Type → Currency → Opening Balance
-  - `Tab` / `Shift+Tab`: switch fields
-  - Type field: `j/k` cycle (Checking/Credit/Cash/Other)
-  - `Enter`: submit, `Esc`: cancel
-  
   #### Delete Transaction
   In Accounts screen, select account, press `d` (removes the first transaction of that account). Press `r` to refresh view.
   
@@ -138,7 +137,7 @@ BASE=http://localhost:8080
 #### For users  or developer that want to try Database stored in a HTTPS back-end server:
 BASE=https://finance-backend.bravestone-51d4c984.canadacentral.azurecontainerapps.io
 ### And you don't need to cargo run.
-
+#### Current TUI version doesn't have a good fallback if an error happens, if you find the bar frozen, please restart it.
 #### 1. Register
 curl -i -X POST "$BASE/auth/register" \
   -H "Content-Type: application/json" \
