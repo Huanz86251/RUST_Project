@@ -25,6 +25,10 @@ Unlike many existing Rust CLI finance tools that are either local-file-based (CS
 Overall, this project fills a gap in the Rust ecosystem by offering a modern, strongly-typed, self-hostable finance tracker that goes beyond simple logging, supporting reconciliation, reporting, and AI-assisted workflows.
 
 ### Key Features
+
+**HTTPS cloud back-end database**: All ledger data is persisted in a remote HTTPS back-end service (API + database), enabling multi-device access and persistent storage.
+*Value to objective*: provides reliable, centralized storage for financial records and supports real-world usage beyond a single machine.
+
 **Secure authentication & user isolation**: Register/login with token-based authentication; all data access is scoped per user.
 *Value to objective*: ensures user data privacy and enables safe usage on a remote HTTPS service.
 
@@ -51,6 +55,8 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
 **LLM-agent chain**: The LLM can decide if it needs to call agents (5 agents total: Monthly spend/income summary; Recent top spending categories; Recent top spending accounts; Recent month-by-month trends; Action tool: Upload new transaction
 ) based on the user’s question and analyze the output. 
 
+**Budgeting & financial reports **: Provide financial reporting views such as monthly income/expense/net summary, top spending categories/accounts, and month-by-month trends; optionally support setting budget targets and comparing actual spending vs. budget.
+*Value to objective*: helps users understand spending patterns, evaluate financial health, and make budgeting decisions based on clear reports.
 
 
 
@@ -307,7 +313,7 @@ curl -i "$BASE/ledger/snapshot" \
  
 
 ## Reproducibility Guide
-
+** If you want to connect to the local database, pls change the client main.rs code line 15 from “https://finance-backend.bravestone-51d4c984.canadacentral.azurecontainerapps.io” to "http://127.0.0.1:8080"
   #### Prerequisites
   - Rust toolchain
   sudo apt-get update
@@ -427,3 +433,6 @@ cargo build
 Through this project, we learned how to better divide tasks and collaborate, and how teammates can agree on interfaces. For example, our data analysis and TUI teams uniformly used the ledger structure as the central hub, which greatly simplified subsequent integration. Backend-client integration only required writing a mapping structure. We also learned how to call models, maintain the model's forward process, assemble templates, call agents, and build TUI within the Rust environment. The most direct takeaway was that debugging after a Rust project is completed is indeed easier, but the development process has a higher upfront development cost. This project helped us learn how to develop an end-to-end Rust project.
 ### Innovation
 Most student-scale finance trackers that add AI features rely on third-party APIs, while they rarely demonstrate a complete offline LLM workflow. We load quantized large models locally (Candle + GGUF), concatenate prompt word templates, control generation configuration, run the full inference loop, and maintain a lightweight tool-calling agent chain to route user questions to multiple finance analytics agents, ensuring compatibility with CPU, CUDA, and METAL. We allow users to flexibly choose different sizes of LLM (0.5B-7B) according to their own devices (a smaller model may fail for calling tools). Compared to using an API, we can better protect user privacy while reducing money cost, which serves as a practical reference for other similar small projects. 
+
+
+
