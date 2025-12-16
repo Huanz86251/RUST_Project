@@ -67,6 +67,8 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
   
 Command-line TUI client for the finance tracker backend. Supports full CRUD over HTTP plus multi-entry transactions.
   
+  *Due to the wide range of possible error cases and limited development time, our project does not handle every invalid input scenario. If the application becomes unresponsive because of unexpected or non-standard input, please terminate the program (e.g., kill the terminal process) and restart the app.*
+  
 #### Screens & Navigation
   - `Tab` / `Shift+Tab`: cycle screens (Dashboard → Accounts → Transactions → CategoryStats → AccountStats → Trends → Reconcile → Advisor → Help)
   - `↑` / `↓`: move selection in lists
