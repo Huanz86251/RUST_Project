@@ -46,7 +46,6 @@ pub struct LoginApp {
     pub mode: LoginMode,
     pub step: LoginStep,
     pub error_message: Option<String>,
-    pub success_message: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -87,7 +86,6 @@ pub struct App {
     pub token: String,
     pub needs_refresh: bool,
     pub error_message: Option<String>,
-    pub success_message: Option<String>,
     pub new_tx_date: String,
     pub new_tx_payee: String,
     pub new_tx_memo: String,
@@ -177,7 +175,6 @@ impl App {
             should_quit: false,
             needs_refresh: false,
             error_message: None,
-            success_message: None,
             new_tx_date: String::new(),
             new_tx_payee: String::new(),
             new_tx_memo: String::new(),

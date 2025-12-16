@@ -64,7 +64,6 @@ pub fn run_tui(ledger: Ledger, base_url: String, token: String) -> anyhow::Resul
                         app.new_category_name = String::new();
                     }
                     app.ledger = new_ledger;
-                    app.success_message = Some("Data refreshed".to_string());
                 }
                 Err(e) => {
                     app.error_message = Some(format!("Refresh failed: {}", e));
@@ -226,7 +225,6 @@ fn handle_key_normal(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime)
                             )) {
                                 Ok(_) => {
                                     app.needs_refresh = true;
-                                    app.success_message = Some("Transaction deleted".to_string());
                                 }
                                 Err(e) => {
                                     app.error_message = Some(format!("Delete failed: {}", e));
@@ -249,7 +247,6 @@ fn handle_key_normal(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime)
                 app.new_account_balance = String::new();
             } else {
                 app.error_message = None;
-                app.success_message = None;
             }
         }
 
@@ -273,7 +270,6 @@ fn handle_key_normal(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime)
                 if let Err(e) = advisor_generate_report(app) {
                     app.error_message = Some(format!("Advisor failed: {}", e));
                 } else {
-                    app.success_message = Some("Advisor: advice generated".to_string());
                     app.advisor_scroll = 0;
                 }
             }
@@ -384,7 +380,6 @@ fn handle_key_create_tx(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runti
             } else {
                 app.input_mode = InputMode::Normal;
                 app.needs_refresh = true;
-                app.success_message = Some("Transaction created".to_string());
             }
         }
         Backspace => match app.new_tx_field_idx {
@@ -623,7 +618,7 @@ fn ui(f: &mut Frame<'_>, app: &App) {
             Constraint::Min(0),    // main
             Constraint::Length(3), // footer (more space for per-screen shortcuts)
         ])
-        .split(f.size());
+        .split(f.area());
 
     // Header
     let (sy, sm) = app.start_month;
@@ -679,8 +674,6 @@ fn ui(f: &mut Frame<'_>, app: &App) {
     // Footer
     let footer_text = if let Some(ref msg) = app.error_message {
         format!("ERROR: {} | Press c to clear", msg)
-    } else if let Some(ref msg) = app.success_message {
-        format!("SUCCESS: {} | Press c to clear", msg)
     } else {
         match app.input_mode {
             InputMode::Normal => match app.current_screen {
@@ -1438,10 +1431,6 @@ fn draw_create_transaction(f: &mut Frame<'_>, area: Rect, app: &App) {
         let err_block = Block::default().title("Error").borders(Borders::ALL);
         let err_p = Paragraph::new(msg.as_str()).block(err_block);
         f.render_widget(err_p, chunks[2]);
-    } else if let Some(ref msg) = app.success_message {
-        let succ_block = Block::default().title("Success").borders(Borders::ALL);
-        let succ_p = Paragraph::new(msg.as_str()).block(succ_block);
-        f.render_widget(succ_p, chunks[2]);
     }
 }
 
@@ -1472,7 +1461,6 @@ fn handle_key_create_account(app: &mut App, key: KeyEvent, rt: &tokio::runtime::
                     Ok(_) => {
                         app.input_mode = InputMode::Normal;
                         app.needs_refresh = true;
-                        app.success_message = Some("Account created".to_string());
                         app.new_account_name = String::new();
                         app.new_account_type_idx = 0;
                         app.new_account_type_selection = 0;
@@ -1610,10 +1598,6 @@ fn draw_create_account(f: &mut Frame<'_>, area: Rect, app: &App) {
         let err_block = Block::default().title("Error").borders(Borders::ALL);
         let err_p = Paragraph::new(msg.as_str()).block(err_block);
         f.render_widget(err_p, chunks[1]);
-    } else if let Some(ref msg) = app.success_message {
-        let succ_block = Block::default().title("Success").borders(Borders::ALL);
-        let succ_p = Paragraph::new(msg.as_str()).block(succ_block);
-        f.render_widget(succ_p, chunks[1]);
     }
 }
 
@@ -1678,10 +1662,10 @@ fn draw_login(f: &mut Frame<'_>, area: Rect, app: &LoginApp) {
                     .title(email_label));
             f.render_widget(email_input, form_chunks[0]);
             if app.mode == LoginMode::Email {
-                f.set_cursor(
+                f.set_cursor_position((
                     form_chunks[0].x + app.email.len() as u16 + 1,
                     form_chunks[0].y + 1,
-                );
+                ));
             }
 
             let password_label = if app.mode == LoginMode::Password {
@@ -1701,10 +1685,10 @@ fn draw_login(f: &mut Frame<'_>, area: Rect, app: &LoginApp) {
                     .title(password_label));
             f.render_widget(password_input, form_chunks[1]);
             if app.mode == LoginMode::Password {
-                f.set_cursor(
+                f.set_cursor_position((
                     form_chunks[1].x + app.password.len() as u16 + 1,
                     form_chunks[1].y + 1,
-                );
+                ));
             }
 
             if let Some(ref err) = app.error_message {
@@ -1712,11 +1696,6 @@ fn draw_login(f: &mut Frame<'_>, area: Rect, app: &LoginApp) {
                     .style(Style::default().fg(Color::Red))
                     .block(Block::default().borders(Borders::ALL).title("Error"));
                 f.render_widget(error_text, form_chunks[2]);
-            } else if let Some(ref msg) = app.success_message {
-                let ok_text = Paragraph::new(msg.as_str())
-                    .style(Style::default().fg(Color::Green))
-                    .block(Block::default().borders(Borders::ALL).title("Info"));
-                f.render_widget(ok_text, form_chunks[2]);
             }
         }
     }
@@ -1746,12 +1725,10 @@ fn handle_login_key(
             KeyCode::Enter | KeyCode::Char('l') => {
                 app.step = LoginStep::Login;
                 app.error_message = None;
-                app.success_message = None;
             }
             KeyCode::Char('r') => {
                 app.step = LoginStep::Register;
                 app.error_message = None;
-                app.success_message = None;
             }
             _ => {}
         },
@@ -1759,7 +1736,6 @@ fn handle_login_key(
             KeyCode::Esc => {
                 app.step = LoginStep::Choose;
                 app.error_message = None;
-                app.success_message = None;
             }
             KeyCode::Tab => {
                 app.mode = match app.mode {
@@ -1769,7 +1745,6 @@ fn handle_login_key(
             }
             KeyCode::Enter => {
                 app.error_message = None;
-                app.success_message = None;
                 let email = app.email.clone();
                 let password = app.password.clone();
                 let base_url = app.base_url.clone();
@@ -1793,8 +1768,6 @@ fn handle_login_key(
                     });
                     match result {
                         Ok(_) => {
-                            app.success_message =
-                                Some("Registered. Press Enter to login.".to_string());
                             app.step = LoginStep::Login;
                         }
                         Err(e) => {
@@ -1833,7 +1806,6 @@ pub fn run_login_tui(base_url: String) -> anyhow::Result<(String, String)> {
         mode: LoginMode::Email,
         step: LoginStep::Choose,
         error_message: None,
-        success_message: None,
     };
 
     let rt = tokio::runtime::Runtime::new()?;
@@ -1845,7 +1817,7 @@ pub fn run_login_tui(base_url: String) -> anyhow::Result<(String, String)> {
     let mut terminal = Terminal::new(backend)?;
 
     loop {
-        terminal.draw(|f| draw_login(f, f.size(), &app))?;
+        terminal.draw(|f| draw_login(f, f.area(), &app))?;
 
         if crossterm::event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
@@ -1893,7 +1865,6 @@ fn handle_key_create_category(app: &mut App, key: KeyEvent, rt: &tokio::runtime:
                 app.is_creating_new_category = false;
                 app.input_mode = InputMode::CreatingTransaction;
                 app.needs_refresh = true;
-                app.success_message = Some("Category created, refreshing...".to_string());
             }
         }
         Backspace => {
@@ -1939,9 +1910,5 @@ fn draw_create_category(f: &mut Frame<'_>, area: Rect, app: &App) {
         let err_block = Block::default().title("Error").borders(Borders::ALL);
         let err_p = Paragraph::new(msg.as_str()).block(err_block);
         f.render_widget(err_p, chunks[1]);
-    } else if let Some(ref msg) = app.success_message {
-        let succ_block = Block::default().title("Success").borders(Borders::ALL);
-        let succ_p = Paragraph::new(msg.as_str()).block(succ_block);
-        f.render_widget(succ_p, chunks[1]);
     }
 }

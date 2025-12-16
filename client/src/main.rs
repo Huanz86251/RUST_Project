@@ -2,9 +2,6 @@ mod advisor;
 mod stat;
 mod tui;
 use anyhow::Result;
-use chrono::Utc;
-use rust_decimal::Decimal;
-use rust_decimal::prelude::FromPrimitive;
 use stat::*;
 
 #[tokio::main]
@@ -85,11 +82,19 @@ async fn main() -> Result<()> {
 
 
     let base_url_clone = base_url.clone();
-    let (token, _user_id) = tokio::task::spawn_blocking(move || {
+    let (token, _user_id) = match tokio::task::spawn_blocking(move || {
         tui::run_login_tui(base_url_clone)
     })
-    .await?
-    .map_err(|e| anyhow::anyhow!("Login error: {}", e))?;
+    .await? {
+        Ok(result) => result,
+        Err(e) => {
+            let error_msg = e.to_string();
+            if error_msg.contains("User cancelled login") {
+                return Ok(());
+            }
+            return Err(anyhow::anyhow!("Login error: {}", e));
+        }
+    };
     
     println!("running TUI...");
     let ledger = download_ledger_from_server(&base_url, &token).await?;
