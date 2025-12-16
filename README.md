@@ -154,7 +154,9 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
 ### User guide for backend server without client (Only Curl)
 
 #### For developer who want to try server with local database:
+
 cargo run --release
+
 BASE=http://localhost:8080
 
 #### For users  or developer that want to try Database stored in a HTTPS back-end server:
