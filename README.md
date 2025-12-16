@@ -1,6 +1,3 @@
-# Project Proposal: Rust Web Crawler with Data Analysis
-## Group Members
-
 | Role | Name | Student ID | GitHub ID |preferred email addresses
 |------|------|------------|----------|-----------------|
 | **Member A** | Zihao Gong | 1005036916 | [Zihao1121](https://github.com/Zihao1121) | zihao.gong@mail.utoronto.ca|
@@ -15,6 +12,7 @@ https://youtu.be/MdWqHg7cZUQ
 
 https://youtu.be/PqolwAENrKM
 
+# Final Report
 ## Motivation
 In daily life, everyone needs to manage multiple accounts, such as checking accounts and credit cards. Each transaction and income often has a different purpose and corresponding date. And it is difficult to use mobile banking apps or spreadsheets to achieve granular statistical analysis. At the same time, many existing personal finance management apps only record transaction history but lack reconciliation processes. If discrepancies arise between internally recorded balances and bank/credit card statement balances, it is hard for users to pinpoint the source of the problem. Furthermore, in today's LLM-driven world, apps without integrated large-scale models are a little bit outdated. And some projects that use LLM tend to use cloud-based models, with few willing to invest in implementing local deployments and inference logic for LLM.
 
@@ -67,7 +65,7 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
 
 ## User’s (or Developer’s) Guide:
   
-  Command-line TUI client for the finance tracker backend. Supports full CRUD over HTTP plus multi-entry transactions.
+Command-line TUI client for the finance tracker backend. Supports full CRUD over HTTP plus multi-entry transactions.
   
 #### Screens & Navigation
   - `Tab` / `Shift+Tab`: cycle screens (Dashboard → Accounts → Transactions → CategoryStats → AccountStats → Trends → Reconcile → Advisor → Help)
@@ -75,43 +73,101 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
   - `q`: quit
   - `?`: help
   - `r`: refresh data from server
+  - `c`: clear error message (when error is displayed)
   
- #### Dashboard
- It displays total income, total outcome, and net balance for the currently focused month.
-  - `←` / `→`: change focused month
-  - `[` / `]`: shift start date range (it can change on the dashboard page, but is not relevant to dashboard data)
-  - `{` / `}`: shift end date range (it can change on the dashboard page, but is not relevant to dashboard data)
-  - `n`: new transaction
+  #### Dashboard
+  It displays total income, total outcome, and net balance for the currently focused month.
+    - Focused month (YYYY-MM format)
+    - Income: total income for the month
+    - Outcome: total expenses for the month
+    - Net: net balance (income - outcome)
+
+  Controls:
+    - `←` / `→`: change focused month
+    - `[` / `]`: shift minimum month of global date range (left boundary)
+    - `{` / `}` (Shift+[ / Shift+]): shift maximum month of global date range (right boundary)
+    - `n`: create new transaction
   
   #### Accounts
-  It lists all user accounts.
-  - `↑` / `↓`: select account
-  - `n`: new transaction
-  - `c`: create account
-  - `d`: delete first transaction of selected account
+  Lists all accounts with their current balances. Displays a table with:
+    - ID: account identifier
+    - Name: account name
+    - Type: account type (Checking, Credit, Cash, Other)
+    - Balance: current computed balance
+    - Currency: account currency (e.g., USD, CAD)
+
+  Controls:
+    - `↑` / `↓`: select account
+    - `n`: create new transaction
+    - `c`: create new account
+    - `d`: delete first transaction of selected account
+    - `c`: clear error message (when error is displayed and not creating account)
   
   #### Transactions
-  It lists all user transactions.
-  - `↑` / `↓`: select transaction
-  - `n`: new transaction
+  Lists all transactions in chronological order. Displays a table with:
+    - Date: transaction date (YYYY-MM-DD)
+    - Payee: payee/receiver name
+    - Memo: transaction description/memo
+    - Amount: total transaction amount (sum of all entries)
+    - Entries: number of entries in the transaction (supports split transactions)
+
+  Controls:
+    - `↑` / `↓`: select transaction
+    - `n`: new transaction
+  
+  #### Top Categories by Outcome
+  - #: ranking number
+  - Category: category name
+  - Income: total income in this category
+  - Outcome: total expenses in this category
+  - Net: net balance (income - outcome)
+  - % Spend: percentage of total spending
+
+  Controls:
+  List the categories that spend the most within a given time period
+  - `↑` / `↓`: scroll through category statistics
+  - `[` / `]`: shift start date range
+  - `{` / `}`: shift end date range
+
+  #### Top Accounts by Outcome
+  List the accounts that spend the most within a given time period
+  - #: ranking number
+  - Account: account name
+  - Income: total income in this account
+  - Outcome: total expenses in this account
+  - Net: net balance (income - outcome)
+  - % Spend: percentage of total spending
+  
+  Controls:
+  - `↑` / `↓`: scroll through account statistics
+  - Time range is controlled by global date range settings (use `[`/`]` and `{`/`}` on Dashboard or Trends screen)
+  
+
+  #### Monthly Trends
+  Showing monthly income and expenses over a period of time
+  - Month: month in YYYY-MM format
+  - Income: total income for that month
+  - Outcome: total expenses for that month
+  - Net: net balance for that month
+  
+  Controls:
+  - `[` / `]`: shift minimum month of global date range
+  - `{` / `}` (Shift+[ / Shift+]): shift maximum month of global date range
   
   #### Reconcile
   It will calculate user cash flow in a specific timeframe and verify it with external amount. If there are any differences, it will return some suspect transactions,  help the user compare internally computed balances with externally reported balances, it won't care user's original bank money, it focuses on all transactions between the time range.
+  - Time range: the period being reconciled
+  - External balance: user-entered balance from bank/credit card statement
+  - Internal balance: computed balance from transaction records
+  - Difference: discrepancy between internal and external balances
+  - Status: OK ✅ if balances match, MISMATCH ❌ if there's a discrepancy
+  - Suspicious Entries: list of top transactions that might explain the discrepancy (shown when mismatch is detected)
+  
+  Controls:
   - `e`: edit external balance (type numbers), `Enter` submit, `Esc` cancel
   - `[` / `]`: shift start date range
   - `{` / `}`: shift end date range
-  #### Top Categories by Outcome
-  List the categories that spend the most within a given time period
-  - `[` / `]`: shift start date range
-  - `{` / `}`: shift end date range
-  #### Top Accounts by Outcome
-  List the accounts that spend the most within a given time period
-  - `[` / `]`: shift start date range
-  - `{` / `}`: shift end date range
-  #### Monthly Trends
-  Showing monthly income and expenses over a period of time
-  - `[` / `]`: shift start date range
-  - `{` / `}`: shift end date range
+
   #### Create Category
   While in Category field press `n`, type name, `Enter` submit (`Esc` cancel). Auto-refresh selects the new category.
   
