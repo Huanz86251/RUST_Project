@@ -86,8 +86,8 @@ Command-line TUI client for the finance tracker backend. Supports full CRUD over
 
   Controls:
   - `←` / `→`: change focused month
-  - `[` / `]`: shift minimum month of global date range (left boundary)
-  - `{` / `}` (Shift+[ / Shift+]): shift maximum month of global date range (right boundary)
+  - `[` / `]`: shift minimum month of global date range (left boundary) (this time phase bar is for other statistical functions, won't influence this page )
+  - `{` / `}` (Shift+[ / Shift+]): shift maximum month of global date range (right boundary) (this time phase bar is for other statistical functions, won't influence this page )
   - `n`: create new transaction
 
   #### Accounts
