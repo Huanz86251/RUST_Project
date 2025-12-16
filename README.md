@@ -70,7 +70,7 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
   
   Command-line TUI client for the finance tracker backend. Supports full CRUD over HTTP plus multi-entry transactions.
   
-  #### Screens & Navigation
+#### Screens & Navigation
   - `Tab` / `Shift+Tab`: cycle screens (Dashboard → Accounts → Transactions → CategoryStats → AccountStats → Trends → Reconcile → Advisor → Help)
   - `↑` / `↓`: move selection in lists
   - `q`: quit
@@ -78,22 +78,29 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
   - `r`: refresh data from server
   
  #### Dashboard
+ It displays total income, total outcome, and net balance for the currently focused month.
   - `←` / `→`: change focused month
-  - `[` / `]`: shift global date range
+  - `[` / `]`: shift start date range (it can change on the dashboard page, but is not relevant to dashboard data)
+  - `{` / `}`: shift start date range (it can change on the dashboard page, but is not relevant to dashboard data)
   - `n`: new transaction
   
   #### Accounts
+  It lists all user accounts.
   - `↑` / `↓`: select account
   - `n`: new transaction
   - `c`: create account
   - `d`: delete first transaction of selected account
   
   #### Transactions
+  It lists all user transactions.
   - `↑` / `↓`: select transaction
   - `n`: new transaction
   
   #### Reconcile
+  It will calculate user cash flow in a specific timeframe and verify it with external amount. If there are any differences, it will return some suspect transactions,  help the user compare internally computed balances with externally reported balances, it won't care user's original bank money, it focuses on all transactions between the time range.
   - `e`: edit external balance (type numbers), `Enter` submit, `Esc` cancel
+  - `[` / `]`: shift start date range
+  - `{` / `}`: shift start date range
   
   #### Create Category
   While in Category field press `n`, type name, `Enter` submit (`Esc` cancel). Auto-refresh selects the new category.
