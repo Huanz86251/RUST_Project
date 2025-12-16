@@ -406,7 +406,7 @@ struct Loginreq {
     email: String,
     password: String,
 }
-
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct Loginget {
     pub token: String,

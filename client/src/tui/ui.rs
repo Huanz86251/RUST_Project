@@ -117,8 +117,10 @@ fn handle_key_normal(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime)
         Right => app.next_month(),
 
         // Shift global time range
-        Char('[') => app.shift_range(-1),
-        Char(']') => app.shift_range(1),
+        Char('[') => app.startmonth_range(-1),
+        Char(']') => app.startmonth_range(1),
+        Char('{') => app.endmonth_range(-1),
+        Char('}') => app.endmonth_range(1),
 
         Up => match app.current_screen {
             Screen::Accounts => {
@@ -1561,7 +1563,7 @@ fn submit_new_account(app: &mut App, rt: &tokio::runtime::Runtime) -> anyhow::Re
 }
 
 fn draw_create_account(f: &mut Frame<'_>, area: Rect, app: &App) {
-    let chunks = Layout::default()
+    let _chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(6), Constraint::Min(0)])
         .split(area);
