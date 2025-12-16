@@ -54,7 +54,7 @@ Complex Split Transactions (Multiple Entries Across Accounts/Categories)
 A single transaction can contain multiple entries (splits), allowing one real-world event to be allocated across multiple categories and/or accounts.
 *Value to objective*: matches real finance scenarios (e.g., one purchase split across categories) and keeps balances accurate.
 
-**Reconciliation**: Compare computed balances with user-entered statement balances, and if there are discrepancies, we will return the top_k most suspicious transactions.
+**Reconciliation**: Compare transactions amount in a specific time range with user-entered statement balances, and if there are discrepancies, we will return the top_k most suspicious transactions.
 
 **LLM-assisted input & analysis**: The LLM can interpret the user's recent statistical data and give two advice. We will record the user's preferred choice and save it to the local folder for culture DPO training. 
 
