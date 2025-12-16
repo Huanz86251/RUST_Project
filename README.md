@@ -8,7 +8,13 @@
 | **Member C** | Zixuan Huang | 1006288376 | [Huanz86251](https://github.com/Huanz86251) | chrim.huang@mail.utoronto.ca|
 
 # Video Slide Presentation
+
 https://youtu.be/MdWqHg7cZUQ
+
+# Video Demo
+
+https://youtu.be/PqolwAENrKM
+
 ## Motivation
 In daily life, everyone needs to manage multiple accounts, such as checking accounts and credit cards. Each transaction and income often has a different purpose and corresponding date. And it is difficult to use mobile banking apps or spreadsheets to achieve granular statistical analysis. At the same time, many existing personal finance management apps only record transaction history but lack reconciliation processes. If discrepancies arise between internally recorded balances and bank/credit card statement balances, it is hard for users to pinpoint the source of the problem. Furthermore, in today's LLM-driven world, apps without integrated large-scale models are a little bit outdated. And some projects that use LLM tend to use cloud-based models, with few willing to invest in implementing local deployments and inference logic for LLM.
 
