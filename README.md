@@ -92,30 +92,30 @@ Command-line TUI client for the finance tracker backend. Supports full CRUD over
 
   #### Accounts
   Lists all accounts with their current balances. Displays a table with:
-    - ID: account identifier
-    - Name: account name
-    - Type: account type (Checking, Credit, Cash, Other)
-    - Balance: current computed balance
-    - Currency: account currency (e.g., USD, CAD)
+  - ID: account identifier
+  - Name: account name
+  - Type: account type (Checking, Credit, Cash, Other)
+  - Balance: current computed balance
+  - Currency: account currency (e.g., USD, CAD)
 
   Controls:
-    - `↑` / `↓`: select account
-    - `n`: create new transaction
-    - `c`: create new account
-    - `d`: delete first transaction of selected account
-    - `c`: clear error message (when error is displayed and not creating account)
-  
+  - `↑` / `↓`: select account
+  - `n`: create new transaction
+  - `c`: create new account
+  - `d`: delete first transaction of selected account
+  - `c`: clear error message (when error is displayed and not creating account)
+
   #### Transactions
   Lists all transactions in chronological order. Displays a table with:
-    - Date: transaction date (YYYY-MM-DD)
-    - Payee: payee/receiver name
-    - Memo: transaction description/memo
-    - Amount: total transaction amount (sum of all entries)
-    - Entries: number of entries in the transaction (supports split transactions)
+  - Date: transaction date (YYYY-MM-DD)
+  - Payee: payee/receiver name
+  - Memo: transaction description/memo
+  - Amount: total transaction amount (sum of all entries)
+  - Entries: number of entries in the transaction (supports split transactions)
 
   Controls:
-    - `↑` / `↓`: select transaction
-    - `n`: new transaction
+  - `↑` / `↓`: select transaction
+  - `n`: new transaction
   
   #### Top Categories by Outcome
   - #: ranking number
