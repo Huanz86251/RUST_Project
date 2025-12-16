@@ -1859,7 +1859,7 @@ pub fn run_login_tui(base_url: String) -> anyhow::Result<(String, String)> {
                     terminal.show_cursor()?;
                     return Ok((token, user_id));
                 }
-                if matches!(key.code, KeyCode::Char('q') | KeyCode::Esc) {
+                if key.code == KeyCode::Esc && matches!(app.step, LoginStep::Choose) {
                     disable_raw_mode()?;
                     execute!(
                         terminal.backend_mut(),
