@@ -81,7 +81,7 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
  It displays total income, total outcome, and net balance for the currently focused month.
   - `←` / `→`: change focused month
   - `[` / `]`: shift start date range (it can change on the dashboard page, but is not relevant to dashboard data)
-  - `{` / `}`: shift start date range (it can change on the dashboard page, but is not relevant to dashboard data)
+  - `{` / `}`: shift end date range (it can change on the dashboard page, but is not relevant to dashboard data)
   - `n`: new transaction
   
   #### Accounts
@@ -100,8 +100,19 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
   It will calculate user cash flow in a specific timeframe and verify it with external amount. If there are any differences, it will return some suspect transactions,  help the user compare internally computed balances with externally reported balances, it won't care user's original bank money, it focuses on all transactions between the time range.
   - `e`: edit external balance (type numbers), `Enter` submit, `Esc` cancel
   - `[` / `]`: shift start date range
-  - `{` / `}`: shift start date range
-  
+  - `{` / `}`: shift end date range
+  #### Top Categories by Outcome
+  List the categories that spend the most within a given time period
+  - `[` / `]`: shift start date range
+  - `{` / `}`: shift end date range
+  #### Top Accounts by Outcome
+  List the accounts that spend the most within a given time period
+  - `[` / `]`: shift start date range
+  - `{` / `}`: shift end date range
+  #### Monthly Trends
+  Showing monthly income and expenses over a period of time
+  - `[` / `]`: shift start date range
+  - `{` / `}`: shift end date range
   #### Create Category
   While in Category field press `n`, type name, `Enter` submit (`Esc` cancel). Auto-refresh selects the new category.
   
