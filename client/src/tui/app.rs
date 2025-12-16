@@ -220,11 +220,12 @@ impl App {
         self.selected_month = add_months(self.selected_month, -1);
     }
 
-    pub fn shift_range(&mut self, delta: i32) {
+    pub fn startmonth_range(&mut self, delta: i32) {
         self.start_month = add_months(self.start_month, delta);
+    }
+    pub fn endmonth_range(&mut self, delta: i32) {
         self.end_month = add_months(self.end_month, delta);
     }
-
     pub fn perform_reconcile(&mut self) {
         let trimmed = self.reconcile_external_balance.trim();
         if trimmed.is_empty() {

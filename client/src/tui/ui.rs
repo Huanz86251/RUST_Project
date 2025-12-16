@@ -116,8 +116,10 @@ fn handle_key_normal(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runtime)
         Right => app.next_month(),
 
         // Shift global time range
-        Char('[') => app.shift_range(-1),
-        Char(']') => app.shift_range(1),
+        Char('[') => app.startmonth_range(-1),
+        Char(']') => app.startmonth_range(1),
+        Char('{') => app.endmonth_range(-1),
+        Char('}') => app.endmonth_range(1),
 
         Up => match app.current_screen {
             Screen::Accounts => {
