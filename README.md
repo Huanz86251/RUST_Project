@@ -126,13 +126,13 @@ Command-line TUI client for the finance tracker backend. Supports full CRUD over
   - % Spend: percentage of total spending
 
   Controls:
-  List the categories that spend the most within a given time period
+  List the top10 categories that spend the most within a given time period
   - `↑` / `↓`: scroll through category statistics
   - `[` / `]`: shift start date range
   - `{` / `}`: shift end date range
 
   #### Top Accounts by Outcome
-  List the accounts that spend the most within a given time period
+  List the top10 accounts that spend the most within a given time period
   - #: ranking number
   - Account: account name
   - Income: total income in this account
