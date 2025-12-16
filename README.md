@@ -111,7 +111,7 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
   - Type field: `j/k` cycle (Checking/Credit/Cash/Other)
   - `Enter`: submit, `Esc`: cancel
 
-    #### Create Transaction (supports multiple entries, can only succeed after creating an account)
+  #### Create Transaction (supports multiple entries, can only succeed after creating an account)
   Enter with `n` (Dashboard/Accounts/Transactions). Fields in order: Date → Payee → Memo → Amount → Account → Category → Entries.
   
   - `Tab` / `Shift+Tab`: switch fields
