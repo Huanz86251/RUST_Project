@@ -313,7 +313,7 @@ curl -i "$BASE/ledger/snapshot" \
  
 
 ## Reproducibility Guide
-** If you want to connect to the local database, pls change the client main.rs code line 15 from “https://finance-backend.bravestone-51d4c984.canadacentral.azurecontainerapps.io” to "http://127.0.0.1:8080" **
+**If you want to connect to the local database, pls change the client main.rs code line 15 from “https://finance-backend.bravestone-51d4c984.canadacentral.azurecontainerapps.io” to "http://127.0.0.1:8080"**
   #### Prerequisites
   - Rust toolchain
   sudo apt-get update
