@@ -56,8 +56,7 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
 
 **Reconciliation**: Compare transactions amount in a specific time range with user-entered statement balances, and if there are discrepancies, we will return the top_k most suspicious transactions.
 
-**LLM-assisted input & analysis**: The LLM can interpret the user's recent statistical data and give two advice. We will record the user's preferred choice and save it to the local folder for culture DPO training. 
-
+**LLM-assisted input & analysis**: The LLM can interpret the user's recent statistical data and give two advice.
 **LLM-agent chain**: The LLM can decide if it needs to call agents (5 agents total: Monthly spend/income summary; Recent top spending categories; Recent top spending accounts; Recent month-by-month trends; Action tool: Upload new transaction
 ) based on the user’s question and analyze the output. 
 
@@ -155,7 +154,9 @@ A single transaction can contain multiple entries (splits), allowing one real-wo
 ### User guide for backend server without client (Only Curl)
 
 #### For developer who want to try server with local database:
+
 cargo run --release
+
 BASE=http://localhost:8080
 
 #### For users  or developer that want to try Database stored in a HTTPS back-end server:
