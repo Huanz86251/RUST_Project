@@ -684,12 +684,12 @@ fn ui(f: &mut Frame<'_>, app: &App) {
     } else {
         match app.input_mode {
             InputMode::Normal => match app.current_screen {
-                Screen::Dashboard => "Dashboard: Tab/Shift+Tab switch | ←/→ month | [ ] range | n new tx | r refresh | ? help | q quit".to_string(),
+                Screen::Dashboard => "Dashboard: Tab/Shift+Tab switch | ←/→ month | [ ] min month range |shift [] max month range| n new tx | r refresh | ? help | q quit".to_string(),
                 Screen::Accounts => "Accounts: Tab/Shift+Tab switch | ↑/↓ select account | n new tx | c new account | d delete first tx | r refresh | q quit".to_string(),
                 Screen::Transactions => "Transactions: Tab/Shift+Tab switch | ↑/↓ select tx | n new tx | r refresh | q quit".to_string(),
                 Screen::CategoryStats => "Category Stats: Tab/Shift+Tab switch | ↑/↓ move | r refresh | q quit".to_string(),
                 Screen::AccountStats => "Account Stats: Tab/Shift+Tab switch | ↑/↓ move | r refresh | q quit".to_string(),
-                Screen::Trends => "Trends: Tab/Shift+Tab switch | r refresh | q quit".to_string(),
+                Screen::Trends => "Trends: Tab/Shift+Tab switch | [ ] min month range |shift [] max month range| r refresh | q quit".to_string(),
                 Screen::Reconcile => "Reconcile: Tab/Shift+Tab switch | e edit external balance | r refresh | q quit".to_string(),
                 Screen::Advisor => "Advisor: Tab/Shift+Tab switch | g generate | m select model (↑/↓/Enter/Esc) | i chat | PageUp/PageDown chat scroll | ↑/↓ output scroll | r refresh | q quit".to_string(),
                 Screen::Help => "Help: Tab/Shift+Tab switch | q quit".to_string(),
