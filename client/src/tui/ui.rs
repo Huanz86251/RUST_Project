@@ -8,6 +8,7 @@ use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+    event::{EnableMouseCapture, DisableMouseCapture},
 };
 use ratatui::{
     Frame, Terminal,
@@ -18,7 +19,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Row, Table},
 };
 
-use super::app::{App, InputMode, Screen};
+use super::app::{App, InputMode, Screen, LoginApp, LoginMode, LoginStep};
 use crate::advisor::{Generationcfg, Model, Modeltype};
 use crate::stat::Ledger;
 use anyhow;
@@ -341,9 +342,9 @@ fn handle_key_create_tx(app: &mut App, key: KeyEvent, rt: &tokio::runtime::Runti
                 app.error_message = Some("Amount is required".to_string());
             } else {
                 let _amount: f64 = match app.new_tx_amount.trim().parse() {
-                    Ok(a) if a > 0.0 => a,
+                    Ok(a) if a != 0.0 => a,
                     _ => {
-                        app.error_message = Some("Amount must be a positive number".to_string());
+                        app.error_message = Some("Amount cannot be zero".to_string());
                         return;
                     }
                 };
@@ -467,8 +468,8 @@ fn submit_new_transaction(app: &mut App, rt: &tokio::runtime::Runtime) -> anyhow
             .trim()
             .parse()
             .map_err(|_| anyhow::anyhow!("Invalid amount in entry: {}", amount_str))?;
-        if amount <= 0.0 {
-            return Err(anyhow::anyhow!("Amount must be greater than 0").into());
+        if amount == 0.0 {
+            return Err(anyhow::anyhow!("Amount cannot be zero").into());
         }
         let account = app
             .ledger
@@ -483,7 +484,7 @@ fn submit_new_transaction(app: &mut App, rt: &tokio::runtime::Runtime) -> anyhow
         entries.push(Entryreq {
             account_id: account.id,
             category_id,
-            amount: Decimal::from_f64(-amount.abs()).unwrap(),
+            amount: Decimal::from_f64(amount).unwrap(),
             note: None,
         });
     }
@@ -495,8 +496,8 @@ fn submit_new_transaction(app: &mut App, rt: &tokio::runtime::Runtime) -> anyhow
             .trim()
             .parse()
             .map_err(|_| anyhow::anyhow!("Invalid amount (must be a number)"))?;
-        if amount <= 0.0 {
-            return Err(anyhow::anyhow!("Amount must be greater than 0").into());
+        if amount == 0.0 {
+            return Err(anyhow::anyhow!("Amount cannot be zero").into());
         }
         let account = app
             .ledger
@@ -514,7 +515,7 @@ fn submit_new_transaction(app: &mut App, rt: &tokio::runtime::Runtime) -> anyhow
         entries.push(Entryreq {
             account_id: account.id,
             category_id,
-            amount: Decimal::from_f64(-amount.abs()).unwrap(),
+            amount: Decimal::from_f64(amount).unwrap(),
             note: if app.new_tx_memo.is_empty() {
                 None
             } else {
@@ -618,9 +619,9 @@ fn ui(f: &mut Frame<'_>, app: &App) {
         .constraints([
             Constraint::Length(3), // header
             Constraint::Min(0),    // main
-            Constraint::Length(1), // footer
+            Constraint::Length(3), // footer (more space for per-screen shortcuts)
         ])
-        .split(f.area());
+        .split(f.size());
 
     // Header
     let (sy, sm) = app.start_month;
@@ -675,28 +676,36 @@ fn ui(f: &mut Frame<'_>, app: &App) {
 
     // Footer
     let footer_text = if let Some(ref msg) = app.error_message {
-        format!("ERROR: {} | Press 'c' to clear", msg)
+        format!("ERROR: {} | Press c to clear", msg)
     } else if let Some(ref msg) = app.success_message {
-        format!("SUCCESS: {} | Press 'c' to clear", msg)
+        format!("SUCCESS: {} | Press c to clear", msg)
     } else {
         match app.input_mode {
-            InputMode::Normal => {
-                "Tab/Shift+Tab: switch screen  |  ←/→: month  |  [ ]: shift range  |  ↑/↓: move  |  r: refresh  |  n: new transaction  |  d: delete  |  e: edit external balance (Reconcile)  |  ?: help  |  q: quit".to_string()
-            }
+            InputMode::Normal => match app.current_screen {
+                Screen::Dashboard => "Dashboard: Tab/Shift+Tab switch | ←/→ month | [ ] range | n new tx | r refresh | ? help | q quit".to_string(),
+                Screen::Accounts => "Accounts: Tab/Shift+Tab switch | ↑/↓ select account | n new tx | c new account | d delete first tx | r refresh | q quit".to_string(),
+                Screen::Transactions => "Transactions: Tab/Shift+Tab switch | ↑/↓ select tx | n new tx | r refresh | q quit".to_string(),
+                Screen::CategoryStats => "Category Stats: Tab/Shift+Tab switch | ↑/↓ move | r refresh | q quit".to_string(),
+                Screen::AccountStats => "Account Stats: Tab/Shift+Tab switch | ↑/↓ move | r refresh | q quit".to_string(),
+                Screen::Trends => "Trends: Tab/Shift+Tab switch | r refresh | q quit".to_string(),
+                Screen::Reconcile => "Reconcile: Tab/Shift+Tab switch | e edit external balance | r refresh | q quit".to_string(),
+                Screen::Advisor => "Advisor: Tab/Shift+Tab switch | g generate | m select model (↑/↓/Enter/Esc) | i chat | PageUp/PageDown chat scroll | ↑/↓ output scroll | r refresh | q quit".to_string(),
+                Screen::Help => "Help: Tab/Shift+Tab switch | q quit".to_string(),
+            },
             InputMode::EditingReconcile => {
-                "Editing external balance: 0-9 . - to type, Enter to submit, Esc to cancel".to_string()
+                "Reconcile edit: 0-9 . - to type | Enter submit | Esc cancel".to_string()
             }
             InputMode::CreatingTransaction => {
-                "Creating transaction: Tab to switch fields, Enter to submit, Esc to cancel".to_string()
+                "Create tx: Tab/Shift+Tab fields | j/k account/category | n new category | a add entry | x del entry | Enter submit | Esc cancel".to_string()
             }
             InputMode::CreatingCategory => {
-                "Creating category: Type name, Enter to submit, Esc to cancel".to_string()
+                "Create category: Type name | Enter submit | Esc cancel".to_string()
             }
             InputMode::CreatingAccount => {
-                "Creating account: Tab to switch fields, j/k to change type, Enter to submit, Esc to cancel".to_string()
+                "Create account: Tab/Shift+Tab fields | j/k account type | Enter submit | Esc cancel".to_string()
             }
             InputMode::AdvisorChat => {
-                "Advisor chat: Type question, Enter to send, Esc to cancel".to_string()
+                "Advisor chat: Type message | Enter send | Esc cancel".to_string()
             }
         }
     };
@@ -1557,7 +1566,7 @@ fn draw_create_account(f: &mut Frame<'_>, area: Rect, app: &App) {
         .constraints([Constraint::Length(6), Constraint::Min(0)])
         .split(area);
 
-    let account_types = vec!["Checking", "Credit", "Cash", "Other"];
+    let account_types = vec!["Chequing", "Credit", "Cash", "Other"];
     let account_type_name = account_types
         .get(app.new_account_type_selection)
         .unwrap_or(&"Checking")
@@ -1603,6 +1612,263 @@ fn draw_create_account(f: &mut Frame<'_>, area: Rect, app: &App) {
         let succ_block = Block::default().title("Success").borders(Borders::ALL);
         let succ_p = Paragraph::new(msg.as_str()).block(succ_block);
         f.render_widget(succ_p, chunks[1]);
+    }
+}
+
+fn draw_login(f: &mut Frame<'_>, area: Rect, app: &LoginApp) {
+    use ratatui::prelude::Alignment;
+    use ratatui::style::Color;
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Min(10),
+            Constraint::Length(3),
+        ])
+        .split(area);
+
+    let title_text = match app.step {
+        LoginStep::Choose => "Rust Finance Tracker - Choose Login or Register",
+        LoginStep::Login => "Rust Finance Tracker - Login",
+        LoginStep::Register => "Rust Finance Tracker - Register",
+    };
+    let title = Paragraph::new(title_text)
+        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::ALL));
+    f.render_widget(title, chunks[0]);
+
+    match app.step {
+        LoginStep::Choose => {
+            let mut text = String::new();
+            text.push_str("Press Enter or l to Login\n");
+            text.push_str("Press r to Register\n");
+            text.push_str("Esc to quit");
+            let block = Block::default().title("Select").borders(Borders::ALL);
+            let p = Paragraph::new(text).block(block).alignment(Alignment::Center);
+            f.render_widget(p, chunks[1]);
+        }
+        LoginStep::Login | LoginStep::Register => {
+            let form_chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(3),
+                    Constraint::Length(3),
+                    Constraint::Length(3),
+                    Constraint::Min(1),
+                ])
+                .split(chunks[1]);
+
+            let email_label = if app.mode == LoginMode::Email {
+                "> Email: "
+            } else {
+                "  Email: "
+            };
+            let email_input = Paragraph::new(app.email.as_str())
+                .style(if app.mode == LoginMode::Email {
+                    Style::default().fg(Color::Yellow)
+                } else {
+                    Style::default()
+                })
+                .block(Block::default()
+                    .borders(Borders::ALL)
+                    .title(email_label));
+            f.render_widget(email_input, form_chunks[0]);
+            if app.mode == LoginMode::Email {
+                f.set_cursor(
+                    form_chunks[0].x + app.email.len() as u16 + 1,
+                    form_chunks[0].y + 1,
+                );
+            }
+
+            let password_label = if app.mode == LoginMode::Password {
+                "> Password: "
+            } else {
+                "  Password: "
+            };
+            let password_display = "*".repeat(app.password.len());
+            let password_input = Paragraph::new(password_display.as_str())
+                .style(if app.mode == LoginMode::Password {
+                    Style::default().fg(Color::Yellow)
+                } else {
+                    Style::default()
+                })
+                .block(Block::default()
+                    .borders(Borders::ALL)
+                    .title(password_label));
+            f.render_widget(password_input, form_chunks[1]);
+            if app.mode == LoginMode::Password {
+                f.set_cursor(
+                    form_chunks[1].x + app.password.len() as u16 + 1,
+                    form_chunks[1].y + 1,
+                );
+            }
+
+            if let Some(ref err) = app.error_message {
+                let error_text = Paragraph::new(err.as_str())
+                    .style(Style::default().fg(Color::Red))
+                    .block(Block::default().borders(Borders::ALL).title("Error"));
+                f.render_widget(error_text, form_chunks[2]);
+            } else if let Some(ref msg) = app.success_message {
+                let ok_text = Paragraph::new(msg.as_str())
+                    .style(Style::default().fg(Color::Green))
+                    .block(Block::default().borders(Borders::ALL).title("Info"));
+                f.render_widget(ok_text, form_chunks[2]);
+            }
+        }
+    }
+
+    let footer_text = match app.step {
+        LoginStep::Choose => "Enter/l: Login | r: Register | Esc: Quit",
+        LoginStep::Login => "Tab: switch field | Enter: login | Esc: back",
+        LoginStep::Register => "Tab: switch field | Enter: register | Esc: back",
+    };
+    let footer = Paragraph::new(footer_text)
+        .style(Style::default().fg(Color::Gray))
+        .alignment(Alignment::Center);
+    f.render_widget(footer, chunks[2]);
+}
+
+fn handle_login_key(
+    app: &mut LoginApp,
+    key: KeyEvent,
+    rt: &tokio::runtime::Runtime,
+) -> Option<(String, String)> {
+    if key.kind != KeyEventKind::Press {
+        return None;
+    }
+    match app.step {
+        LoginStep::Choose => match key.code {
+            KeyCode::Esc => return None,
+            KeyCode::Enter | KeyCode::Char('l') => {
+                app.step = LoginStep::Login;
+                app.error_message = None;
+                app.success_message = None;
+            }
+            KeyCode::Char('r') => {
+                app.step = LoginStep::Register;
+                app.error_message = None;
+                app.success_message = None;
+            }
+            _ => {}
+        },
+        LoginStep::Login | LoginStep::Register => match key.code {
+            KeyCode::Esc => {
+                app.step = LoginStep::Choose;
+                app.error_message = None;
+                app.success_message = None;
+            }
+            KeyCode::Tab => {
+                app.mode = match app.mode {
+                    LoginMode::Email => LoginMode::Password,
+                    LoginMode::Password => LoginMode::Email,
+                };
+            }
+            KeyCode::Enter => {
+                app.error_message = None;
+                app.success_message = None;
+                let email = app.email.clone();
+                let password = app.password.clone();
+                let base_url = app.base_url.clone();
+
+                if app.step == LoginStep::Login {
+                    let result = rt.block_on(async {
+                        crate::stat::sync::login(&base_url, &email, &password).await
+                    });
+                    match result {
+                        Ok(auth) => {
+                            return Some((auth.token, auth.user_id.to_string()));
+                        }
+                        Err(e) => {
+                            app.error_message = Some(format!("Login failed: {}", e));
+                        }
+                    }
+                } else {
+                    // Register
+                    let result = rt.block_on(async {
+                        crate::stat::sync::register(&base_url, &email, &password).await
+                    });
+                    match result {
+                        Ok(_) => {
+                            app.success_message =
+                                Some("Registered. Press Enter to login.".to_string());
+                            app.step = LoginStep::Login;
+                        }
+                        Err(e) => {
+                            app.error_message = Some(format!("Registration failed: {}", e));
+                        }
+                    }
+                }
+            }
+            KeyCode::Char(c) => match app.mode {
+                LoginMode::Email => {
+                    app.email.push(c);
+                }
+                LoginMode::Password => {
+                    app.password.push(c);
+                }
+            },
+            KeyCode::Backspace => match app.mode {
+                LoginMode::Email => {
+                    app.email.pop();
+                }
+                LoginMode::Password => {
+                    app.password.pop();
+                }
+            },
+            _ => {}
+        },
+    }
+    None
+}
+
+pub fn run_login_tui(base_url: String) -> anyhow::Result<(String, String)> {
+    let mut app = LoginApp {
+        base_url,
+        email: String::new(),
+        password: String::new(),
+        mode: LoginMode::Email,
+        step: LoginStep::Choose,
+        error_message: None,
+        success_message: None,
+    };
+
+    let rt = tokio::runtime::Runtime::new()?;
+    
+    enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+
+    loop {
+        terminal.draw(|f| draw_login(f, f.size(), &app))?;
+
+        if crossterm::event::poll(Duration::from_millis(100))? {
+            if let Event::Key(key) = event::read()? {
+                if let Some((token, user_id)) = handle_login_key(&mut app, key, &rt) {
+                    disable_raw_mode()?;
+                    execute!(
+                        terminal.backend_mut(),
+                        LeaveAlternateScreen,
+                        DisableMouseCapture
+                    )?;
+                    terminal.show_cursor()?;
+                    return Ok((token, user_id));
+                }
+                if matches!(key.code, KeyCode::Char('q') | KeyCode::Esc) {
+                    disable_raw_mode()?;
+                    execute!(
+                        terminal.backend_mut(),
+                        LeaveAlternateScreen,
+                        DisableMouseCapture
+                    )?;
+                    terminal.show_cursor()?;
+                    return Err(anyhow::anyhow!("User cancelled login"));
+                }
+            }
+        }
     }
 }
 

@@ -26,6 +26,29 @@ pub enum InputMode {
     AdvisorChat,
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum LoginMode {
+    Email,
+    Password,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum LoginStep {
+    Choose,
+    Login,
+    Register,
+}
+
+pub struct LoginApp {
+    pub base_url: String,
+    pub email: String,
+    pub password: String,
+    pub mode: LoginMode,
+    pub step: LoginStep,
+    pub error_message: Option<String>,
+    pub success_message: Option<String>,
+}
+
 #[derive(Clone, Debug)]
 pub struct ReconcileEntryView {
     pub entry_id: String,
